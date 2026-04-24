@@ -1,4 +1,4 @@
-# RECO-CIF-AI
+# RECO-CLE-AI
 
 Personal Music Discovery Web App built as an **Angular + Angular Material SPA** with an **ASP.NET Core Web API** backend.
 
