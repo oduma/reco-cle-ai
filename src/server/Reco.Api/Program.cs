@@ -3,8 +3,6 @@ using Reco.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Bind Gemini options — reads GEMINI_API_KEY, GEMINI_MODEL, GEMINI_BASE_URL env vars
-// as well as the "Gemini" section from appsettings.json for non-secret defaults.
 builder.Services.Configure<GeminiOptions>(options =>
 {
     builder.Configuration.GetSection(GeminiOptions.SectionName).Bind(options);
@@ -59,7 +57,6 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Fail fast with a clear message if the API key is missing
 var geminiKey = app.Configuration["GEMINI_API_KEY"];
 if (string.IsNullOrWhiteSpace(geminiKey))
 {
@@ -93,12 +90,19 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.UseCors("AngularDevPolicy");
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
+// Serve the Angular app from wwwroot (production deployment)
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
+
+// SPA fallback: any unmatched route returns index.html so Angular routing works
+app.MapFallbackToFile("index.html");
 
 app.Run();
 

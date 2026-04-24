@@ -4,6 +4,8 @@
 .env.*.local
 secrets.local.json
 .claude/settings.local.json
+deploy
+
 
 # Optional local secret note files (avoid committing provider credentials)
 **/token.txt
