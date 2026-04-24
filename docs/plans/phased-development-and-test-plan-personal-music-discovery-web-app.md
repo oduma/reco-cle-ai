@@ -231,29 +231,38 @@ Move to Phase 2 only when:
 
 ---
 
-## 6. Phase 2 — Web Suggestions Above the Chat
+## 6. Phase 2 — Structured Track Suggestions Above the Chat
 
 ## 6.1 Objective
 
-Enhance the application so that each user request can produce two coordinated outputs:
+Enhance the application so that each user request produces two coordinated outputs from a **single Gemini call**:
 
-1. a conversational AI response in the chat,
-2. a structured **suggestions area above the chat** showing music suggestions retrieved from web sources.
+1. a conversational AI response in the chat (the narrative explanation),
+2. a structured **suggestions panel above the chat** showing the specific tracks Gemini recommended — the same tracks the chat is already talking about, surfaced as machine-readable cards.
+
+The suggestions panel is not a separate retrieval from a different source. It is the structured form of what Gemini already said. Gemini is asked to return both a free-text narrative and a JSON track list in one response.
+
+### Why external providers (Last.fm, MusicBrainz, Discogs) are not used here
+
+Gemini is the recommender. The providers are not needed as a second opinion or a separate data source in Phase 2.
+
+The value of those providers becomes clear in Phase 3: Gemini can suggest tracks that are hard to match against local files by name alone. Last.fm and MusicBrainz give each track a canonical identity (e.g. a MusicBrainz ID) that makes matching against the Clementine library reliable rather than a fragile fuzzy string search. That grounding role belongs in Phase 3, not Phase 2.
 
 ## 6.2 Scope
 
 ### In scope
 - suggestion panel above the chat
-- backend retrieval orchestration for web suggestions
+- single Gemini call returning both the chat narrative and a structured track list
 - response contract containing both:
-  - chat narrative,
-  - structured suggestions
+  - chat narrative (string)
+  - structured suggestion list (track title, artist, album per item)
 - list card or table UI for suggestions
 - loading state for suggestions
-- empty state when no good suggestions exist
-- partial-failure behavior when chat works but suggestions do not (or vice versa)
+- empty state when Gemini returns no tracks
+- partial-failure behavior when parsing fails but the chat narrative still succeeds
 
 ### Out of scope
+- external provider calls (Last.fm, MusicBrainz, Discogs) — these belong in Phase 3
 - local-library filtering
 - Clementine integration
 - final personal-only ranking
@@ -263,62 +272,59 @@ Enhance the application so that each user request can produce two coordinated ou
 
 ### Frontend
 - suggestions panel above chat
-- suggestion list item/card component
+- suggestion card component (title, artist, album)
 - states for loading / empty / partial failure
 - update flow so new suggestions replace or refresh the previous list intentionally
 
 ### Backend
-- recommendation query endpoint or upgraded chat endpoint response
-- retrieval orchestration service
-- provider adapter(s) or web suggestion provider abstraction
-- normalized suggestion DTO
-- graceful degradation behavior for partial provider failures
+- dedicated recommendations endpoint (`/api/recommendations`)
+- single Gemini call that returns structured JSON containing both the chat narrative and the track list
+- track suggestion DTO (title, artist, album)
+- graceful degradation when Gemini's structured output cannot be parsed
 
-### Suggested response shape
-A single response per prompt should return:
-- chat answer
-- suggestion list
-- optional confidence metadata
-- optional message when suggestion quality is weak
+### Response shape
+A single call to the recommendations endpoint should return:
+- chat narrative (the conversational answer Gemini produced)
+- suggestion list (the specific tracks Gemini named, structured)
+- optional message when no tracks could be extracted
 
 ## 6.4 Testable user story
 
-> “As a user, I can ask for music in the chat and see a list of suggested songs/artists/albums from the web displayed above the chat response.”
+> “As a user, I can ask for music in the chat, see Gemini's conversational recommendation in the chat area, and see the specific tracks it mentioned structured as cards above the chat.”
 
 ## 6.5 Manual test checklist
 
 - Does the suggestions panel render above the chat consistently?
+- Do the tracks in the panel match what Gemini described in the chat?
 - Do suggestions change when I submit a new prompt?
-- Are suggestions structured and readable?
+- Are suggestion cards readable (title, artist, album visible)?
 - Does the chat response still work as in Phase 1?
-- If suggestion retrieval fails, does chat still work?
-- If no suggestions are found, do I get a meaningful empty state?
+- If structured parsing fails, does the chat narrative still appear?
+- If Gemini returns no tracks, do I get a meaningful empty state?
 - Are suggestion items clearly distinct from normal chat messages?
-- Are duplicate or obviously poor suggestions appearing?
 
 ## 6.6 Technical acceptance criteria
 
 - structured suggestions appear separately from chat messages
-- chat and suggestions can coexist in one request/response flow
-- retrieval failures do not destroy the whole user experience unnecessarily
+- the track list in the panel reflects what Gemini recommended in the narrative
+- both outputs come from a single backend call, not two independent calls
+- parsing failures do not destroy the chat experience
 - UI supports empty, loading, and partial-failure states
 - response contract is stable enough for iterative correction
 
 ## 6.7 Likely correction themes after Phase 2
 
+- Gemini sometimes not returning structured output in the expected format
 - suggestion layout and density
-- too many / too few suggestions
-- poor web relevance
-- duplicate suggestions
+- too many / too few tracks in the structured list
+- mismatch between what Gemini says in the narrative and what appears in the panel
 - weak empty-state wording
-- mixed timing between chat and suggestion rendering
 - confusion between “chat answer” and “result list”
 
 ## 6.8 Phase 2 exit criteria
 
 Move to Phase 3 only when:
-- the suggestions panel is stable,
-- web suggestions are at least directionally useful,
+- the suggestions panel is stable and reflects what Gemini actually recommended,
 - chat remains stable,
 - and the UI clearly separates conversational explanation from structured result display.
 
@@ -328,23 +334,30 @@ Move to Phase 3 only when:
 
 ## 7.1 Objective
 
-Turn the app into a **personal collection discovery tool** by filtering or grounding the web suggestions against your local Clementine library.
+Turn the app into a **personal collection discovery tool** by grounding Gemini's track suggestions against your local Clementine library.
 
 This phase should transform the app from:
-- “interesting web suggestions”
+- “Gemini recommends interesting tracks”
 
 into:
-- “interesting suggestions that match what I already own locally”.
+- “Gemini recommends interesting tracks, and the app tells you which ones you actually own locally”.
+
+### Why external providers (Last.fm, MusicBrainz, Discogs) become relevant here
+
+Matching a track name like “Blue in Green – Miles Davis” against a local file by string comparison alone is fragile: artist name formatting, album editions, and tagging inconsistencies all cause misses.
+
+Last.fm and MusicBrainz give each track a stable canonical identity (MusicBrainz IDs, canonical artist/release names) that makes local library matching reliable. This is the role external providers play in this architecture — they are **identity verifiers** that bridge Gemini's suggestions to the Clementine library, not independent recommenders.
 
 ## 7.2 Scope
 
 ### In scope
 - Clementine database access from backend
 - adapter/service to read local library entities
-- matching/filtering logic from web suggestions to local collection
+- external provider adapter(s) (Last.fm, MusicBrainz) for canonical track identity resolution
+- matching/filtering logic from Gemini suggestions to local collection
 - UI signal indicating that results are local-only or locally-matched
 - reduced-confidence or no-match behavior when suggestions do not exist locally
-- optional explanation note when an item is a local equivalent rather than an exact surfaced suggestion
+- optional explanation note when an item is a local equivalent rather than an exact match
 
 ### Out of scope
 - advanced personalization beyond basic filtering (unless intentionally added)
@@ -365,7 +378,8 @@ into:
 ### Backend
 - Clementine adapter/service
 - local inventory snapshot model
-- matching/filtering logic
+- external provider adapter(s) (Last.fm / MusicBrainz) for canonical track identity resolution
+- matching/filtering logic from Gemini suggestions to local collection
 - updated recommendation DTO with local match fields
 - fallback behavior when DB is unavailable or stale
 
@@ -520,15 +534,15 @@ At the end of each phase:
 ## Phase 2
 
 ### Focus
-- dual-output response: chat + suggestions
-- panel rendering
-- partial failure behavior
+- dual-output response from a single Gemini call: chat narrative + structured track list
+- suggestions panel rendering
+- partial failure behavior when structured parsing fails but chat narrative succeeds
 
 ### Minimum tests
-- endpoint tests for suggestion payload shape
-- frontend tests for suggestion rendering
-- one end-to-end test: send prompt → see suggestions above chat
-- one failure-path test: chat succeeds, suggestions fail gracefully
+- endpoint tests for recommendation payload shape (suggestions + message)
+- frontend tests for suggestion card rendering (title, artist, album)
+- one end-to-end test: send prompt → see track cards above chat that match the narrative
+- one failure-path test: structured parsing fails, chat narrative still appears correctly
 
 ## Phase 3
 

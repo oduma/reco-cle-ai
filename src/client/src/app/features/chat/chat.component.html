@@ -1,8 +1,17 @@
-<div class="chat-shell">
+<div class="page-shell">
   <header class="chat-header">
     <mat-icon aria-hidden="true">music_note</mat-icon>
     <span class="chat-title">Music Discovery</span>
   </header>
+
+  @if (hasSuggestions()) {
+    <app-suggestions-panel
+      [suggestions]="suggestions()"
+      [loading]="suggestionsLoading()"
+      [error]="suggestionsError()"
+      [message]="suggestionsMessage()"
+    />
+  }
 
   <div class="message-list" #messageList>
     @if (messages().length === 0 && !loading()) {

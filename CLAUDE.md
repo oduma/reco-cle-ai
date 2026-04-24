@@ -85,7 +85,7 @@ Use these locations as the primary sources of truth:
 
 ## Current Known Environment Variables
 - `GEMINI_API_KEY`
-- `LASTFM_API_KEY`
+- `LAST_FM_API_KEY`
 - `LASTFM_API_SECRET`
 - `DISCOGS_USER_TOKEN`
 - `GEMINI_MODEL`

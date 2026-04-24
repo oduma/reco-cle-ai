@@ -1,0 +1,36 @@
+<section class="suggestions-panel" aria-label="Track suggestions">
+  <div class="panel-header">
+    <mat-icon aria-hidden="true">queue_music</mat-icon>
+    <span class="panel-title">Suggested Tracks</span>
+    @if (loading()) {
+      <mat-spinner diameter="16" class="header-spinner" aria-label="Loading suggestions"></mat-spinner>
+    }
+  </div>
+
+  @if (loading() && suggestions().length === 0) {
+    <div class="panel-state panel-state--loading">
+      <span>Finding tracks…</span>
+    </div>
+  } @else if (error()) {
+    <div class="panel-state panel-state--error" role="alert">
+      <mat-icon aria-hidden="true">warning_amber</mat-icon>
+      <span>Suggestions unavailable right now.</span>
+    </div>
+  } @else if (suggestions().length === 0 && message()) {
+    <div class="panel-state panel-state--empty">
+      <mat-icon aria-hidden="true">search_off</mat-icon>
+      <span>{{ message() }}</span>
+    </div>
+  } @else if (suggestions().length > 0) {
+    <div class="track-list" role="list">
+      @for (track of suggestions(); track track.title + track.artist) {
+        <div role="listitem">
+          <app-suggestion-card [suggestion]="track" />
+        </div>
+      }
+    </div>
+    @if (message()) {
+      <p class="panel-note">{{ message() }}</p>
+    }
+  }
+</section>

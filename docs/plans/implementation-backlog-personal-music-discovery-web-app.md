@@ -529,54 +529,42 @@ Implement reusable card/list item UI for suggestions.
 
 ---
 
-## P2-004 — Implement backend retrieval orchestration skeleton
+## P2-004 — Implement Gemini dual-output orchestration
 
 ### Goal
-Add server-side orchestration for retrieving web suggestions.
+Add a backend service that issues a single Gemini call returning both:
+- the conversational chat narrative, and
+- a structured JSON track list (title, artist, album per item).
+
+Gemini is the sole source of recommendations in Phase 2. External providers (Last.fm, MusicBrainz) are not called here — their role is canonical identity resolution for local library matching, which belongs in Phase 3.
 
 ### Suggested owner / agent
-- Domain & Provider Integration Agent
 - .NET API Agent
+- Domain & Provider Integration Agent
 
 ### Dependencies
 - P2-001
 
 ### Definition of done
-- retrieval service abstraction exists
-- backend can return structured suggestion items
+- orchestration service calls Gemini once and parses both outputs
+- structured track list and chat narrative are returned together
+- parsing failure is handled gracefully (narrative preserved, track list empty with message)
 
 ---
 
-## P2-005 — Add first provider adapter or web suggestion source
+## P2-006 — Return dual output through API endpoint
 
 ### Goal
-Implement at least one retrieval source for initial web suggestions.
-
-### Suggested owner / agent
-- Domain & Provider Integration Agent
-
-### Dependencies
-- P2-004
-
-### Definition of done
-- at least one provider/source can return normalized suggestion data
-
----
-
-## P2-006 — Return suggestions through API endpoint
-
-### Goal
-Upgrade the backend endpoint so the frontend receives chat + suggestions together.
+Expose the recommendations endpoint so the frontend receives the chat narrative and structured track list together.
 
 ### Suggested owner / agent
 - .NET API Agent
 
 ### Dependencies
 - P2-004
-- P2-005
 
 ### Definition of done
-- endpoint returns both conversation answer and structured suggestions
+- endpoint returns both chat narrative and structured track suggestions
 - API contract matches P2-001
 
 ---
@@ -630,10 +618,9 @@ Run the full Phase 2 checklist from the phased development plan.
 - Platform, Quality, and DevOps Agent
 - Angular Frontend Agent
 - .NET API Agent
-- Domain & Provider Integration Agent
 
 ### Dependencies
-- P2-001 through P2-008
+- P2-001 through P2-004, P2-006 through P2-008
 
 ### Definition of done
 - Phase 2 manual checklist completed
@@ -717,6 +704,14 @@ Confirm Phase 2 is stable enough to support local-library grounding work.
 
 ## 9. Phase 3 Backlog — Clementine Local Filtering
 
+### Why external providers are introduced here
+
+Gemini recommends tracks by name. Matching those names against local Clementine files by string comparison alone is fragile — artist name formatting, album editions, and file tagging inconsistencies all cause misses.
+
+Last.fm and MusicBrainz resolve each track to a canonical identity (e.g. MusicBrainz IDs, normalised artist/release names). This canonical identity is what makes local library matching reliable. That is the only role providers play in this system — they are identity resolvers, not recommenders.
+
+---
+
 ## P3-001 — Define local match contract extension
 
 ### Goal
@@ -751,6 +746,25 @@ Introduce backend configuration for the Clementine database location.
 ### Definition of done
 - local DB path can be configured safely
 - invalid path behavior is visible and controlled
+
+---
+
+## P3-002b — Implement provider identity adapter (Last.fm / MusicBrainz)
+
+### Goal
+Implement a backend adapter that takes a Gemini-suggested track (title + artist) and resolves it to a canonical identity using Last.fm or MusicBrainz. This canonical identity is used downstream to match the track against the local Clementine library.
+
+### Suggested owner / agent
+- Domain & Provider Integration Agent
+
+### Dependencies
+- P3-001
+- P2C-004
+
+### Definition of done
+- given a track name and artist, the adapter can return a normalised identity (canonical artist name, release name, optional MusicBrainz IDs)
+- adapter is abstracted and independently testable
+- failure to resolve identity degrades gracefully (falls back to string-based matching)
 
 ---
 

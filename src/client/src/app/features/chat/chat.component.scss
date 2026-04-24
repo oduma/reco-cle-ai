@@ -5,10 +5,11 @@
   overflow: hidden;
 }
 
-.chat-shell {
+.page-shell {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 }
 
 .chat-header {
@@ -26,6 +27,12 @@
   font-size: 1.2rem;
   font-weight: 500;
   letter-spacing: 0.01em;
+}
+
+app-suggestions-panel {
+  max-height: 200px;
+  overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .message-list {

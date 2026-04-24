@@ -4,7 +4,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
-import { ChatService, ConversationTurn } from '../../core/services/chat.service';
+import {
+  RecommendationService,
+  ConversationTurn,
+  TrackSuggestion,
+} from '../../core/services/recommendation.service';
+import { SuggestionsPanelComponent } from './suggestions-panel/suggestions-panel.component';
 
 interface Message {
   role: 'user' | 'model';
@@ -20,6 +25,7 @@ interface Message {
     MatButtonModule,
     MatProgressSpinnerModule,
     MatIconModule,
+    SuggestionsPanelComponent,
   ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
@@ -33,10 +39,16 @@ export class ChatComponent implements AfterViewChecked {
   protected error = signal<string | null>(null);
   protected errorIsRateLimit = signal(false);
 
+  protected suggestions = signal<TrackSuggestion[]>([]);
+  protected suggestionsLoading = signal(false);
+  protected suggestionsError = signal(false);
+  protected suggestionsMessage = signal<string | null>(null);
+  protected hasSuggestions = signal(false);
+
   private history: ConversationTurn[] = [];
   private shouldScroll = false;
 
-  constructor(private chatService: ChatService) {}
+  constructor(private recommendationService: RecommendationService) {}
 
   ngAfterViewChecked(): void {
     if (this.shouldScroll) {
@@ -56,11 +68,22 @@ export class ChatComponent implements AfterViewChecked {
     this.errorIsRateLimit.set(false);
     this.shouldScroll = true;
 
-    this.chatService.sendMessage(text, this.history).subscribe({
+    this.suggestionsLoading.set(true);
+    this.suggestionsError.set(false);
+    this.suggestionsMessage.set(null);
+    this.hasSuggestions.set(true);
+
+    this.recommendationService.getRecommendations(text, this.history).subscribe({
       next: response => {
-        this.messages.update(msgs => [...msgs, { role: 'model', text: response.response }]);
+        this.messages.update(msgs => [
+          ...msgs,
+          { role: 'model', text: response.narrative },
+        ]);
         this.history = response.history;
+        this.suggestions.set(response.suggestions);
+        this.suggestionsMessage.set(response.message);
         this.loading.set(false);
+        this.suggestionsLoading.set(false);
         this.shouldScroll = true;
       },
       error: err => {
@@ -68,6 +91,8 @@ export class ChatComponent implements AfterViewChecked {
         this.errorIsRateLimit.set(isRateLimit);
         this.error.set(err.error?.error ?? 'Something went wrong. Please try again.');
         this.loading.set(false);
+        this.suggestionsError.set(true);
+        this.suggestionsLoading.set(false);
       },
     });
   }

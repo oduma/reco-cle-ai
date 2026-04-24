@@ -19,7 +19,19 @@ builder.Services.Configure<GeminiOptions>(options =>
     if (!string.IsNullOrWhiteSpace(baseUrl)) options.BaseUrl = baseUrl;
 });
 
+builder.Services.Configure<RecommendationOptions>(options =>
+{
+    builder.Configuration.GetSection(RecommendationOptions.SectionName).Bind(options);
+
+    if (int.TryParse(builder.Configuration["RECOMMENDATION_MIN_TRACKS"], out var min) && min > 0)
+        options.MinTracks = min;
+
+    if (int.TryParse(builder.Configuration["RECOMMENDATION_MAX_TRACKS"], out var max) && max > 0)
+        options.MaxTracks = max;
+});
+
 builder.Services.AddHttpClient<IGeminiGatewayService, GeminiGatewayService>();
+builder.Services.AddScoped<IRecommendationOrchestrationService, RecommendationOrchestrationService>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
