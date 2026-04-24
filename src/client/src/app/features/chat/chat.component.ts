@@ -31,6 +31,7 @@ export class ChatComponent implements AfterViewChecked {
   protected prompt = signal('');
   protected loading = signal(false);
   protected error = signal<string | null>(null);
+  protected errorIsRateLimit = signal(false);
 
   private history: ConversationTurn[] = [];
   private shouldScroll = false;
@@ -52,6 +53,7 @@ export class ChatComponent implements AfterViewChecked {
     this.prompt.set('');
     this.loading.set(true);
     this.error.set(null);
+    this.errorIsRateLimit.set(false);
     this.shouldScroll = true;
 
     this.chatService.sendMessage(text, this.history).subscribe({
@@ -62,8 +64,9 @@ export class ChatComponent implements AfterViewChecked {
         this.shouldScroll = true;
       },
       error: err => {
-        const message = err.error?.error ?? 'Something went wrong. Please try again.';
-        this.error.set(message);
+        const isRateLimit = err.status === 429;
+        this.errorIsRateLimit.set(isRateLimit);
+        this.error.set(err.error?.error ?? 'Something went wrong. Please try again.');
         this.loading.set(false);
       },
     });

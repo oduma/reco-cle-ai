@@ -118,6 +118,11 @@
   background-color: var(--mat-sys-error-container);
   color: var(--mat-sys-on-error-container);
   font-size: 0.9rem;
+
+  &--rate-limit {
+    background-color: var(--mat-sys-tertiary-container);
+    color: var(--mat-sys-on-tertiary-container);
+  }
 }
 
 .input-area {

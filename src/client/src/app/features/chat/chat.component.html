@@ -28,8 +28,8 @@
     }
 
     @if (error()) {
-      <div class="error-banner" role="alert">
-        <mat-icon aria-hidden="true">error_outline</mat-icon>
+      <div class="error-banner" [class.error-banner--rate-limit]="errorIsRateLimit()" role="alert">
+        <mat-icon aria-hidden="true">{{ errorIsRateLimit() ? 'schedule' : 'error_outline' }}</mat-icon>
         <span>{{ error() }}</span>
       </div>
     }

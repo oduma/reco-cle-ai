@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Reco.Api.DTOs;
 using Reco.Api.Services;
@@ -33,6 +34,11 @@ public class ChatController : ControllerBase
                 .ToList();
 
             return Ok(new ChatResponse(responseText, updatedHistory));
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            _logger.LogWarning("Gemini API rate limit hit");
+            return StatusCode(429, new { error = "The AI service is busy right now. Please wait a moment and try again." });
         }
         catch (HttpRequestException ex)
         {
