@@ -1,0 +1,135 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chat-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  background-color: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.chat-title {
+  font-size: 1.2rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--mat-sys-on-surface-variant);
+  text-align: center;
+  gap: 4px;
+  padding: 40px 20px;
+}
+
+.empty-icon {
+  font-size: 56px;
+  width: 56px;
+  height: 56px;
+  opacity: 0.4;
+  margin-bottom: 8px;
+}
+
+.empty-prompt {
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.empty-hint {
+  font-style: italic;
+  font-size: 0.875rem;
+  opacity: 0.7;
+  margin: 4px 0 0;
+}
+
+.message {
+  display: flex;
+
+  &--user {
+    justify-content: flex-end;
+  }
+
+  &--model {
+    justify-content: flex-start;
+  }
+}
+
+.message-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: 18px;
+  white-space: pre-wrap;
+  line-height: 1.55;
+  font-size: 0.95rem;
+
+  .message--user & {
+    background-color: var(--mat-sys-primary);
+    color: var(--mat-sys-on-primary);
+    border-bottom-right-radius: 4px;
+  }
+
+  .message--model & {
+    background-color: var(--mat-sys-surface-container-highest);
+    color: var(--mat-sys-on-surface);
+    border-bottom-left-radius: 4px;
+  }
+
+  &--loading {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+  }
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  font-size: 0.9rem;
+}
+
+.input-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+  flex-shrink: 0;
+  background-color: var(--mat-sys-surface);
+}
+
+.prompt-field {
+  flex: 1;
+}

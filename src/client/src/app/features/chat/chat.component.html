@@ -1,0 +1,60 @@
+<div class="chat-shell">
+  <header class="chat-header">
+    <mat-icon aria-hidden="true">music_note</mat-icon>
+    <span class="chat-title">Music Discovery</span>
+  </header>
+
+  <div class="message-list" #messageList>
+    @if (messages().length === 0 && !loading()) {
+      <div class="empty-state">
+        <mat-icon class="empty-icon" aria-hidden="true">headphones</mat-icon>
+        <p class="empty-prompt">Ask me anything about music.</p>
+        <p class="empty-hint">Try: "Recommend some melancholic jazz from the 60s"</p>
+      </div>
+    }
+
+    @for (msg of messages(); track $index) {
+      <div class="message" [class.message--user]="msg.role === 'user'" [class.message--model]="msg.role === 'model'">
+        <div class="message-bubble">{{ msg.text }}</div>
+      </div>
+    }
+
+    @if (loading()) {
+      <div class="message message--model">
+        <div class="message-bubble message-bubble--loading">
+          <mat-spinner diameter="20" aria-label="Waiting for response"></mat-spinner>
+        </div>
+      </div>
+    }
+
+    @if (error()) {
+      <div class="error-banner" role="alert">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <span>{{ error() }}</span>
+      </div>
+    }
+  </div>
+
+  <div class="input-area">
+    <mat-form-field class="prompt-field" appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Ask about music…</mat-label>
+      <input
+        matInput
+        [value]="prompt()"
+        (input)="updatePrompt($event)"
+        (keydown)="onKeydown($event)"
+        [disabled]="loading()"
+        placeholder="e.g. Recommend some melancholic jazz from the 60s"
+        aria-label="Music prompt"
+      />
+    </mat-form-field>
+    <button
+      mat-fab
+      (click)="send()"
+      [disabled]="!prompt().trim() || loading()"
+      aria-label="Send message"
+    >
+      <mat-icon>send</mat-icon>
+    </button>
+  </div>
+</div>
