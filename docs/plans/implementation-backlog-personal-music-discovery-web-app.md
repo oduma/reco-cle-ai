@@ -684,6 +684,79 @@ Fix race conditions or confusing UI sequencing between chat response and suggest
 
 ---
 
+## P2C-005 — Replace chat loading spinner with rotating music phrases
+
+### Goal
+Replace the `mat-spinner` in the chat loading bubble with a rotating phrase that cycles every second through a curated pool of music-themed loading messages. A `music_note` icon pulses alongside the phrase.
+
+The phrase pool:
+Holding the note / Staying on the downbeat / Lingering in the intro / Looping the pre‑chorus / Riding the sustain pedal / Tuning up forever / Hovering on the fermata / Chilling in the green room / Stuck in soundcheck mode / Spinning the vinyl before the needle drops / Hanging on the last chord / Paused between tracks / Letting the beat simmer / Idling in the bridge / Waiting for the bass to kick in / Floating in reverb / Queued in the playlist / Stuck in the encore gap / Listening to the orchestra warm up / Waiting for the DJ to unmute
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- Angular Material UX Agent
+
+### Dependencies
+- P2-009
+
+### Definition of done
+- `mat-spinner` removed from chat loading bubble
+- phrase rotates every 1 second while loading is in progress
+- a pulsing music note icon accompanies the phrase
+
+---
+
+## P2C-006 — Replace suggestions panel header spinner with animated music bars
+
+### Goal
+Replace the `mat-spinner` in the suggestions panel header with a CSS-only animated equalizer bars indicator while suggestions are loading.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- Angular Material UX Agent
+
+### Dependencies
+- P2-009
+
+### Definition of done
+- `mat-spinner` removed from suggestions panel header
+- animated equalizer bars render during loading state
+- animation is smooth and clearly communicates loading
+
+---
+
+## P2C-007 — Rename suggestions panel title to "Local Suggested Tracks"
+
+### Goal
+Update the suggestions panel header label from "Suggested Tracks" to "Local Suggested Tracks" to clearly indicate the results are filtered against the local Clementine library.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P2-009
+
+### Definition of done
+- panel header reads "Local Suggested Tracks"
+
+---
+
+## P2C-008 — Fix initial layout cramped on left before first message
+
+### Goal
+The chat component starts visually cramped on the left side of the screen before the first message is sent, then expands. This is caused by the root app component using `display: flex` which makes the chat only as wide as its content. Fix so the chat fills the full viewport from load.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P2-009
+
+### Definition of done
+- chat component fills full viewport width on initial load without any interaction
+
+---
+
 ## P2C-004 — Phase 2 stabilization sign-off
 
 ### Goal
@@ -704,18 +777,22 @@ Confirm Phase 2 is stable enough to support local-library grounding work.
 
 ## 9. Phase 3 Backlog — Clementine Local Filtering
 
-### Why external providers are introduced here
+### Matching strategy
 
-Gemini recommends tracks by name. Matching those names against local Clementine files by string comparison alone is fragile — artist name formatting, album editions, and file tagging inconsistencies all cause misses.
+Phase 3 filters Gemini's suggestions against the local Clementine library using **normalised fuzzy string matching**. Both the Gemini suggestion and the local track tag are normalised (lowercase, punctuation stripped, whitespace collapsed) before comparison. Artist + title are the primary match keys; album is an optional tiebreaker. Tracks that do not meet the match threshold are hidden from the suggestions panel.
 
-Last.fm and MusicBrainz resolve each track to a canonical identity (e.g. MusicBrainz IDs, normalised artist/release names). This canonical identity is what makes local library matching reliable. That is the only role providers play in this system — they are identity resolvers, not recommenders.
+External providers (Last.fm, MusicBrainz) are not used for matching. Local music files do not carry provider-assigned identifiers in their tags, so a canonical identity lookup would still resolve to a string comparison — adding latency with no improvement in match quality.
+
+### Clementine database access strategy
+
+The app reads from a **copy** of the Clementine SQLite database. The path to that copy is set via `CLEMENTINE_DB_PATH` (environment variable), with a fallback default in `appsettings.json` (`C:\Code\clementine.db`).
 
 ---
 
-## P3-001 — Define local match contract extension
+## P3-001 — Define filtered suggestion contract
 
 ### Goal
-Extend the suggestion contract to include local match metadata.
+Update the suggestion response contract so it carries only locally matched tracks. Tracks that do not match the local library are excluded from the payload rather than annotated.
 
 ### Suggested owner / agent
 - Product Contract Agent
@@ -725,15 +802,15 @@ Extend the suggestion contract to include local match metadata.
 - P2C-004
 
 ### Definition of done
-- response contract includes local-match fields
-- exact vs approximate local match states are represented
+- response contract reflects a filtered (local-only) suggestion list
+- empty list + message is supported for the case where no local matches are found
 
 ---
 
-## P3-002 — Implement Clementine configuration and DB path handling
+## P3-002 — Implement Clementine DB path configuration
 
 ### Goal
-Introduce backend configuration for the Clementine database location.
+Introduce backend configuration for the path to the Clementine database copy.
 
 ### Suggested owner / agent
 - Domain & Provider Integration Agent
@@ -744,34 +821,16 @@ Introduce backend configuration for the Clementine database location.
 - P2C-004
 
 ### Definition of done
-- local DB path can be configured safely
-- invalid path behavior is visible and controlled
-
----
-
-## P3-002b — Implement provider identity adapter (Last.fm / MusicBrainz)
-
-### Goal
-Implement a backend adapter that takes a Gemini-suggested track (title + artist) and resolves it to a canonical identity using Last.fm or MusicBrainz. This canonical identity is used downstream to match the track against the local Clementine library.
-
-### Suggested owner / agent
-- Domain & Provider Integration Agent
-
-### Dependencies
-- P3-001
-- P2C-004
-
-### Definition of done
-- given a track name and artist, the adapter can return a normalised identity (canonical artist name, release name, optional MusicBrainz IDs)
-- adapter is abstracted and independently testable
-- failure to resolve identity degrades gracefully (falls back to string-based matching)
+- `CLEMENTINE_DB_PATH` environment variable is read by the backend
+- a default of `C:\Code\clementine.db` is set in `appsettings.json`
+- an invalid or missing path produces a visible, controlled error
 
 ---
 
 ## P3-003 — Build Clementine adapter/service
 
 ### Goal
-Implement backend access to the Clementine database.
+Implement backend access to the Clementine SQLite database copy. Read the local track inventory (title, artist, album, file path) into an in-memory snapshot.
 
 ### Suggested owner / agent
 - Domain & Provider Integration Agent
@@ -780,15 +839,16 @@ Implement backend access to the Clementine database.
 - P3-002
 
 ### Definition of done
-- backend can load local music inventory from Clementine
-- adapter is abstracted and testable
+- backend can load local music inventory from the configured SQLite copy
+- adapter is abstracted behind an interface and independently testable
+- DB read failure is surfaced cleanly rather than silently swallowed
 
 ---
 
 ## P3-004 — Implement local inventory snapshot model
 
 ### Goal
-Create normalized backend structure for local collection entities.
+Define the normalised backend model for a local track entry used by the matching step.
 
 ### Suggested owner / agent
 - Domain & Provider Integration Agent
@@ -797,35 +857,36 @@ Create normalized backend structure for local collection entities.
 - P3-003
 
 ### Definition of done
-- local inventory snapshot can be produced consistently
-- data shape is stable for matching logic
+- local inventory snapshot model exists (title, artist, album, file path)
+- normalised forms (lowercase, punctuation stripped) are computed on load
+- data shape is stable for the matching logic
 
 ---
 
-## P3-005 — Implement suggestion-to-local matching/filtering
+## P3-005 — Implement normalised fuzzy matching logic
 
 ### Goal
-Match or ground web suggestions against the local Clementine inventory.
+Match each Gemini-suggested track against the local inventory using normalised fuzzy string comparison on artist + title.
 
 ### Suggested owner / agent
 - Domain & Provider Integration Agent
-- Ranking & Explanation Agent
 
 ### Dependencies
 - P3-004
 - P3-001
 
 ### Definition of done
-- backend can mark exact local matches
-- backend can mark approximate/local-equivalent matches if used
-- unmatched behavior is defined
+- normalisation is applied to both the Gemini suggestion and the local track before comparison
+- similarity threshold is configurable (default in `appsettings.json`)
+- tracks below the threshold are excluded from results
+- album is used as an optional tiebreaker where title + artist alone are ambiguous
 
 ---
 
-## P3-006 — Return local-only or locally-grounded results from API
+## P3-006 — Return locally filtered results from the recommendations endpoint
 
 ### Goal
-Upgrade endpoint behavior so frontend receives suggestions filtered or annotated by local ownership.
+Update the recommendations endpoint so the suggestion list contains only tracks that matched the local library.
 
 ### Suggested owner / agent
 - .NET API Agent
@@ -834,15 +895,16 @@ Upgrade endpoint behavior so frontend receives suggestions filtered or annotated
 - P3-005
 
 ### Definition of done
-- response includes local match status
-- result set is no longer generic web-only output
+- response suggestions contain only locally matched tracks
+- if no tracks match, an empty list with an explanatory message is returned
+- existing chat narrative is unaffected
 
 ---
 
-## P3-007 — Update frontend suggestion UI for local match status
+## P3-007 — Update frontend suggestions panel for local-only results
 
 ### Goal
-Show local-only/local-equivalent state in the suggestions panel.
+The suggestions panel already renders track cards. No structural change is needed for the hide-unmatched behavior because filtering happens on the backend. Ensure the frontend handles the empty state correctly when no local matches are found.
 
 ### Suggested owner / agent
 - Angular Frontend Agent
@@ -852,15 +914,16 @@ Show local-only/local-equivalent state in the suggestions panel.
 - P3-006
 
 ### Definition of done
-- local match indicators are visible and understandable
-- UI distinguishes exact local match from approximate local equivalent where needed
+- suggestions panel renders the filtered local list correctly
+- empty state is clear when no local matches are returned
+- no frontend change is needed to hide individual cards (they are already absent from the response)
 
 ---
 
-## P3-008 — Add safe degraded behavior for DB unavailable / stale states
+## P3-008 — Add safe degraded behavior for DB unavailable states
 
 ### Goal
-Handle cases where the Clementine database is unavailable or unusable.
+Handle cases where the Clementine database copy is missing, unreadable, or at a misconfigured path.
 
 ### Suggested owner / agent
 - Domain & Provider Integration Agent
@@ -872,8 +935,9 @@ Handle cases where the Clementine database is unavailable or unusable.
 - P3-007
 
 ### Definition of done
-- user sees safe, understandable behavior when local filtering cannot be completed
-- app does not silently pretend unverified results are local
+- user sees a clear, safe message when local filtering cannot run
+- the app does not silently return an unfiltered list pretending it has been locally matched
+- the chat narrative is still returned even when local filtering fails
 
 ---
 
@@ -918,20 +982,20 @@ Correct false positives / false negatives in local matching behavior.
 
 ---
 
-## P3C-002 — Improve explanation of local equivalents
+## P3C-002 — Tune fuzzy match threshold
 
 ### Goal
-Make approximate/local-equivalent recommendations understandable to the user.
+Adjust the similarity threshold and normalisation rules based on real library data discovered during Phase 3 testing.
 
 ### Suggested owner / agent
-- Ranking & Explanation Agent
-- Angular Frontend Agent
+- Domain & Provider Integration Agent
 
 ### Dependencies
 - P3-009
 
 ### Definition of done
-- user-facing wording for local equivalents is clear and not misleading
+- threshold is set to a value that catches obvious owned tracks without producing false positives
+- normalisation handles common tagging conventions found in the actual library
 
 ---
 

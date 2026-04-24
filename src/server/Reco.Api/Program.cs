@@ -30,7 +30,19 @@ builder.Services.Configure<RecommendationOptions>(options =>
         options.MaxTracks = max;
 });
 
+builder.Services.Configure<ClementineOptions>(options =>
+{
+    builder.Configuration.GetSection(ClementineOptions.SectionName).Bind(options);
+
+    var dbPath = builder.Configuration["CLEMENTINE_DB_PATH"];
+    if (!string.IsNullOrWhiteSpace(dbPath)) options.DbPath = dbPath;
+
+    if (double.TryParse(builder.Configuration["CLEMENTINE_MATCH_THRESHOLD"], out var threshold) && threshold > 0)
+        options.MatchThreshold = threshold;
+});
+
 builder.Services.AddHttpClient<IGeminiGatewayService, GeminiGatewayService>();
+builder.Services.AddSingleton<IClementineService, ClementineService>();
 builder.Services.AddScoped<IRecommendationOrchestrationService, RecommendationOrchestrationService>();
 
 builder.Services.AddControllers();
@@ -58,6 +70,23 @@ if (string.IsNullOrWhiteSpace(geminiKey))
 else
 {
     app.Logger.LogInformation("GEMINI_API_KEY loaded (starts with: {Prefix}…)", geminiKey[..4]);
+}
+
+var clementineDbPath = app.Configuration["CLEMENTINE_DB_PATH"]
+    ?? app.Configuration["Clementine:DbPath"]
+    ?? @"C:\Code\clementine.db";
+
+if (!File.Exists(clementineDbPath))
+{
+    app.Logger.LogWarning(
+        "Clementine database copy not found at {Path}. " +
+        "Local library filtering will be unavailable until the file is placed at the configured path. " +
+        "Set CLEMENTINE_DB_PATH to override the location.",
+        clementineDbPath);
+}
+else
+{
+    app.Logger.LogInformation("Clementine database copy found at {Path}", clementineDbPath);
 }
 
 if (app.Environment.IsDevelopment())

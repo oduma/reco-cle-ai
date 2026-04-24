@@ -6,6 +6,6 @@ import { ChatComponent } from './features/chat/chat.component';
   standalone: true,
   imports: [ChatComponent],
   template: '<app-chat />',
-  styles: [':host { display: flex; height: 100vh; }'],
+  styles: [':host { display: block; height: 100vh; }'],
 })
 export class App {}

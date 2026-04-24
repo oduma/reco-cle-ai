@@ -1,8 +1,7 @@
-import { Component, signal, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, signal, ViewChild, ElementRef, AfterViewChecked, OnDestroy, effect } from '@angular/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import {
   RecommendationService,
@@ -16,6 +15,29 @@ interface Message {
   text: string;
 }
 
+const LOADING_PHRASES = [
+  'Holding the note',
+  'Staying on the downbeat',
+  'Lingering in the intro',
+  'Looping the pre‑chorus',
+  'Riding the sustain pedal',
+  'Tuning up forever',
+  'Hovering on the fermata',
+  'Chilling in the green room',
+  'Stuck in soundcheck mode',
+  'Spinning the vinyl before the needle drops',
+  'Hanging on the last chord',
+  'Paused between tracks',
+  'Letting the beat simmer',
+  'Idling in the bridge',
+  'Waiting for the bass to kick in',
+  'Floating in reverb',
+  'Queued in the playlist',
+  'Stuck in the encore gap',
+  'Listening to the orchestra warm up',
+  'Waiting for the DJ to unmute',
+];
+
 @Component({
   selector: 'app-chat',
   standalone: true,
@@ -23,14 +45,13 @@ interface Message {
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
-    MatProgressSpinnerModule,
     MatIconModule,
     SuggestionsPanelComponent,
   ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
 })
-export class ChatComponent implements AfterViewChecked {
+export class ChatComponent implements AfterViewChecked, OnDestroy {
   @ViewChild('messageList') private messageListRef!: ElementRef<HTMLElement>;
 
   protected messages = signal<Message[]>([]);
@@ -45,10 +66,31 @@ export class ChatComponent implements AfterViewChecked {
   protected suggestionsMessage = signal<string | null>(null);
   protected hasSuggestions = signal(false);
 
+  protected loadingPhrase = signal(LOADING_PHRASES[0]);
+
   private history: ConversationTurn[] = [];
   private shouldScroll = false;
+  private loadingInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private recommendationService: RecommendationService) {}
+  constructor(private recommendationService: RecommendationService) {
+    effect(() => {
+      if (this.loading()) {
+        this.loadingPhrase.set(this.randomPhrase());
+        this.loadingInterval = setInterval(() => {
+          this.loadingPhrase.set(this.randomPhrase());
+        }, 1000);
+      } else {
+        if (this.loadingInterval !== null) {
+          clearInterval(this.loadingInterval);
+          this.loadingInterval = null;
+        }
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.loadingInterval !== null) clearInterval(this.loadingInterval);
+  }
 
   ngAfterViewChecked(): void {
     if (this.shouldScroll) {
@@ -106,6 +148,10 @@ export class ChatComponent implements AfterViewChecked {
 
   protected updatePrompt(event: Event): void {
     this.prompt.set((event.target as HTMLInputElement).value);
+  }
+
+  private randomPhrase(): string {
+    return LOADING_PHRASES[Math.floor(Math.random() * LOADING_PHRASES.length)];
   }
 
   private scrollToBottom(): void {

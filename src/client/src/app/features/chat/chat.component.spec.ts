@@ -88,11 +88,13 @@ describe('ChatComponent', () => {
     await fixture.whenStable();
   });
 
-  it('shows loading spinner while waiting for response', async () => {
+  it('shows loading phrase while waiting for response', async () => {
     typeAndSend('any prompt');
     await fixture.whenStable();
 
-    expect(fixture.nativeElement.querySelector('mat-spinner')).toBeTruthy();
+    const loadingBubble = fixture.nativeElement.querySelector('.message-bubble--loading') as HTMLElement;
+    expect(loadingBubble).toBeTruthy();
+    expect(loadingBubble.querySelector('.loading-phrase')).toBeTruthy();
 
     flush();
     fixture.detectChanges();

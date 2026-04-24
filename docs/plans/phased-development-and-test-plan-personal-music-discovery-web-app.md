@@ -334,95 +334,104 @@ Move to Phase 3 only when:
 
 ## 7.1 Objective
 
-Turn the app into a **personal collection discovery tool** by grounding Gemini's track suggestions against your local Clementine library.
+Turn the app into a **personal collection discovery tool** by filtering Gemini's track suggestions against your local Clementine library.
 
 This phase should transform the app from:
 - “Gemini recommends interesting tracks”
 
 into:
-- “Gemini recommends interesting tracks, and the app tells you which ones you actually own locally”.
+- “Gemini recommends interesting tracks, and the app shows only the ones you actually own locally”.
 
-### Why external providers (Last.fm, MusicBrainz, Discogs) become relevant here
+Tracks that Gemini suggests but are not found in the local library are **hidden from the suggestions panel**. The result is a clean, personal list — not a general web recommendation.
 
-Matching a track name like “Blue in Green – Miles Davis” against a local file by string comparison alone is fragile: artist name formatting, album editions, and tagging inconsistencies all cause misses.
+### Why external providers (Last.fm, MusicBrainz) are not used here
 
-Last.fm and MusicBrainz give each track a stable canonical identity (MusicBrainz IDs, canonical artist/release names) that makes local library matching reliable. This is the role external providers play in this architecture — they are **identity verifiers** that bridge Gemini's suggestions to the Clementine library, not independent recommenders.
+The plan originally assumed that Last.fm and MusicBrainz could provide canonical track identities to make local matching reliable. This assumption does not hold: local music files do not carry MusicBrainz IDs or Last.fm identifiers in their tags, so a provider lookup produces no identifier that can be compared against the local file. The canonical identity would still have to be reconciled with local tags by string comparison — so the provider step adds cost and latency without improving match quality.
+
+Instead, Phase 3 uses **normalised fuzzy string matching** directly against the Clementine library:
+- both sides are normalised: lowercase, punctuation stripped, whitespace collapsed
+- artist + title are matched using a similarity measure (e.g. Jaro-Winkler or token overlap)
+- album is used as an optional tiebreaker where available
+- a configurable similarity threshold distinguishes “clear match” from “no match”
+
+This is simpler, faster, requires no external API calls, and is honest about what can be achieved with the tag data that actually exists.
+
+### Clementine database access strategy
+
+The app reads from a **copy** of the Clementine SQLite database, not the live database. This avoids any risk of locking, corruption, or interference with the running Clementine player.
+
+The path to the database copy is configurable via the `CLEMENTINE_DB_PATH` environment variable, with a default value in `appsettings.json`. The initial default is `C:\Code\clementine.db`.
 
 ## 7.2 Scope
 
 ### In scope
-- Clementine database access from backend
-- adapter/service to read local library entities
-- external provider adapter(s) (Last.fm, MusicBrainz) for canonical track identity resolution
-- matching/filtering logic from Gemini suggestions to local collection
-- UI signal indicating that results are local-only or locally-matched
-- reduced-confidence or no-match behavior when suggestions do not exist locally
-- optional explanation note when an item is a local equivalent rather than an exact match
+- configurable path to the Clementine database copy
+- Clementine adapter/service to read the local library from the SQLite copy
+- local inventory snapshot model (title, artist, album, file path)
+- normalised fuzzy string matching of Gemini suggestions against local inventory
+- suggestions panel updated to show **only locally matched tracks** (unmatched tracks are hidden)
+- safe degraded behavior when the database copy is missing or unreadable
 
 ### Out of scope
-- advanced personalization beyond basic filtering (unless intentionally added)
-- full library maintenance tooling
+- external provider calls (Last.fm, MusicBrainz, Discogs) — not useful for matching without local MusicBrainz IDs
+- “local equivalent” approximate-match UI — Phase 3 is match or hide; equivalents can be a later refinement
 - automatic play triggering in Clementine
-- bulk correction tooling for library metadata
+- bulk library metadata correction tooling
+- advanced personalization beyond local ownership filtering
 
 ## 7.3 Recommended deliverables
 
 ### Frontend
-- suggestion cards/list updated to reflect local match status
-- indicators such as:
-  - exact local match
-  - local equivalent
-  - no local match (if shown at all)
-- optional local metadata in suggestion cards (album, artist, etc.)
+- suggestions panel updated to show only locally matched tracks
+- empty state when no Gemini suggestions match the local library
+- safe message when the local library could not be loaded
 
 ### Backend
-- Clementine adapter/service
+- `CLEMENTINE_DB_PATH` environment variable and `appsettings.json` default (`C:\Code\clementine.db`)
+- Clementine adapter/service reading from the SQLite copy
 - local inventory snapshot model
-- external provider adapter(s) (Last.fm / MusicBrainz) for canonical track identity resolution
-- matching/filtering logic from Gemini suggestions to local collection
-- updated recommendation DTO with local match fields
-- fallback behavior when DB is unavailable or stale
+- normalised fuzzy matching logic (artist + title, album as tiebreaker)
+- updated recommendation response including only locally matched tracks
+- fallback behavior when DB path is wrong or file is unreadable
 
 ## 7.4 Testable user story
 
-> “As a user, I can ask for music and see only suggestions that I actually have in my local Clementine library, or the best local equivalents where exact matches are not available.”
+> “As a user, I can ask for music and see only suggestions from Gemini that I actually have in my local Clementine library.”
 
 ## 7.5 Manual test checklist
 
-- Does the backend successfully read the Clementine database?
-- Are locally matched results clearly identified?
-- If no local matches exist, is the result understandable?
-- Are web suggestions correctly reduced to local suggestions?
-- Do obviously owned tracks/albums surface when expected?
-- Are incorrect local matches appearing?
-- Does the app behave safely if the Clementine DB path is wrong or unavailable?
-- Does Phase 2 behavior remain understandable while filtered through local ownership?
+- Does the backend successfully read the Clementine database copy?
+- Are tracks Gemini suggested that I own locally appearing in the panel?
+- Are tracks Gemini suggested that I do not own hidden from the panel?
+- If no suggestions match locally, is the empty state understandable?
+- Does the app behave safely if the DB copy path is wrong or the file is missing?
+- Does changing `CLEMENTINE_DB_PATH` redirect the app to a different copy?
+- Does Phase 2 chat behavior remain unaffected?
 
 ## 7.6 Technical acceptance criteria
 
-- local collection can be loaded reliably
-- filtering/matching is applied before final suggestion rendering
-- result payload includes local-match metadata
-- failures in local DB access are visible and safe
-- the app no longer behaves like a generic web recommender only
+- Clementine DB copy can be read reliably from the configured path
+- fuzzy matching is applied before suggestions are returned
+- only locally matched tracks appear in the suggestion payload
+- DB unavailable state produces a visible, safe outcome
+- the configured path is not hardcoded in source
 
 ## 7.7 Likely correction themes after Phase 3
 
-- bad match quality
-- too-strict vs too-loose local matching
-- duplicate local entries
-- stale DB assumptions
-- missing metadata in Clementine records
-- weak explanation of why a local equivalent was chosen
-- need for refinement of exact vs approximate local matches
+- fuzzy match threshold too strict (misses obvious owned tracks) or too loose (false positives)
+- tag inconsistencies in the local library causing misses
+- empty results for most prompts if the library is small or tags are poor
+- DB path misconfiguration not producing a clear error
+- need to tune normalisation logic for specific tagging conventions
 
 ## 7.8 Phase 3 exit criteria
 
 Phase 3 is complete when:
-- the app can reliably restrict or ground suggestions to your local collection,
-- match behavior is understandable,
-- failures around local DB access are handled safely,
-- and the product now meaningfully reflects your owned music rather than only web discovery.
+- the suggestions panel reliably shows only tracks from the local Clementine library copy,
+- tracks not in the library are hidden,
+- DB access failures are visible and safe,
+- the configured path works without code changes,
+- and the product meaningfully reflects owned music rather than general web discovery.
 
 ---
 
@@ -547,15 +556,16 @@ At the end of each phase:
 ## Phase 3
 
 ### Focus
-- Clementine DB access
-- local filtering correctness
-- degraded behavior when local DB is missing/unavailable
+- Clementine DB copy access (configured path)
+- normalised fuzzy matching correctness
+- suggestions panel showing only locally matched tracks
+- degraded behavior when the DB copy is missing or unreadable
 
 ### Minimum tests
-- integration tests for Clementine adapter
-- matching/filtering tests
-- one end-to-end test: send prompt → suggestions filtered to owned music
-- one failure-path test: local DB unavailable → safe user-visible outcome
+- unit tests for normalisation and fuzzy matching logic
+- integration tests for the Clementine adapter (reads from a test SQLite fixture)
+- one end-to-end test: send prompt → suggestions panel shows only tracks owned locally
+- one failure-path test: DB copy missing or path misconfigured → safe, visible outcome with chat narrative intact
 
 ---
 

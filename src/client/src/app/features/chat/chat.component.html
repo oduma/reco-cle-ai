@@ -1,6 +1,6 @@
 <div class="page-shell">
   <header class="chat-header">
-    <mat-icon aria-hidden="true">music_note</mat-icon>
+    <img src="mainimage.png" alt="" aria-hidden="true" class="header-logo" />
     <span class="chat-title">Music Discovery</span>
   </header>
 
@@ -10,6 +10,7 @@
       [loading]="suggestionsLoading()"
       [error]="suggestionsError()"
       [message]="suggestionsMessage()"
+      [loadingLabel]="loadingPhrase()"
     />
   }
 
@@ -30,8 +31,9 @@
 
     @if (loading()) {
       <div class="message message--model">
-        <div class="message-bubble message-bubble--loading">
-          <mat-spinner diameter="20" aria-label="Waiting for response"></mat-spinner>
+        <div class="message-bubble message-bubble--loading" role="status" aria-live="polite">
+          <mat-icon class="loading-icon" aria-hidden="true">music_note</mat-icon>
+          <span class="loading-phrase">{{ loadingPhrase() }}</span>
         </div>
       </div>
     }

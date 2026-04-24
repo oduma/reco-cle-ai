@@ -1,15 +1,20 @@
 <section class="suggestions-panel" aria-label="Track suggestions">
   <div class="panel-header">
     <mat-icon aria-hidden="true">queue_music</mat-icon>
-    <span class="panel-title">Suggested Tracks</span>
+    <span class="panel-title">Local Suggested Tracks</span>
     @if (loading()) {
-      <mat-spinner diameter="16" class="header-spinner" aria-label="Loading suggestions"></mat-spinner>
+      <div class="music-bars" role="status" aria-label="Loading suggestions">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
     }
   </div>
 
   @if (loading() && suggestions().length === 0) {
-    <div class="panel-state panel-state--loading">
-      <span>Finding tracks…</span>
+    <div class="panel-state panel-state--loading" aria-live="polite">
+      <span>{{ loadingLabel() }}</span>
     </div>
   } @else if (error()) {
     <div class="panel-state panel-state--error" role="alert">

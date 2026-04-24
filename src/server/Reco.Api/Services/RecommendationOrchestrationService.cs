@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 
 namespace Reco.Api.Services;
@@ -5,13 +7,19 @@ namespace Reco.Api.Services;
 public class RecommendationOrchestrationService : IRecommendationOrchestrationService
 {
     private readonly IGeminiGatewayService _gemini;
+    private readonly IClementineService _clementine;
+    private readonly ClementineOptions _clementineOptions;
     private readonly ILogger<RecommendationOrchestrationService> _logger;
 
     public RecommendationOrchestrationService(
         IGeminiGatewayService gemini,
+        IClementineService clementine,
+        IOptions<ClementineOptions> clementineOptions,
         ILogger<RecommendationOrchestrationService> logger)
     {
         _gemini = gemini;
+        _clementine = clementine;
+        _clementineOptions = clementineOptions.Value;
         _logger = logger;
     }
 
@@ -31,14 +39,44 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             .Append(new ConversationTurn("model", result.Narrative))
             .ToList();
 
-        var message = result.Tracks.Count == 0
-            ? "No specific tracks were identified for this request."
-            : null;
+        var (filteredTracks, message) = await FilterAgainstLocalLibraryAsync(result.Tracks, cancellationToken);
 
         _logger.LogInformation(
-            "[Recommendations] Returning {Count} tracks | narrative length: {Length} chars",
-            result.Tracks.Count, result.Narrative.Length);
+            "[Recommendations] Gemini returned {Total} tracks, {Matched} matched local library",
+            result.Tracks.Count, filteredTracks.Count);
 
-        return new RecommendationResponse(result.Narrative, result.Tracks, updatedHistory, message);
+        return new RecommendationResponse(result.Narrative, filteredTracks, updatedHistory, message);
+    }
+
+    private async Task<(IReadOnlyList<TrackSuggestion> Tracks, string? Message)> FilterAgainstLocalLibraryAsync(
+        IReadOnlyList<TrackSuggestion> suggestions,
+        CancellationToken cancellationToken)
+    {
+        if (suggestions.Count == 0)
+            return (suggestions, "No specific tracks were identified for this request.");
+
+        try
+        {
+            var inventory = await _clementine.LoadInventoryAsync(cancellationToken);
+            var threshold = _clementineOptions.MatchThreshold;
+
+            var matched = suggestions
+                .Where(s => inventory.Any(local => TrackMatcher.IsMatch(s, local, threshold)))
+                .ToList();
+
+            var message = matched.Count == 0
+                ? "None of the suggested tracks were found in your local library."
+                : null;
+
+            return (matched, message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[Recommendations] Local library unavailable — returning empty suggestions");
+            return (
+                [],
+                "Your local library is currently unavailable. Check that the database copy exists at the configured path."
+            );
+        }
     }
 }
