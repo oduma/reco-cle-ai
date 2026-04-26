@@ -42,28 +42,37 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             .Append(new ConversationTurn("model", result.Narrative))
             .ToList();
 
-        var (matchedTracks, message) = await FilterAgainstLocalLibraryAsync(result.Tracks, cancellationToken);
+        var (annotatedTracks, message) = await AnnotateWithLocalLibraryAsync(result.Tracks, cancellationToken);
 
-        var freshTracks = _suggestionCache.ExcludeRecentlySuggested(matchedTracks);
+        var localTracks     = annotatedTracks.Where(t => t.InLocalLibrary).ToList();
+        var discoveryTracks = annotatedTracks.Where(t => !t.InLocalLibrary).ToList();
 
-        // Override cache exclusion when all local matches have been recently suggested
-        var tracksToReturn = (freshTracks.Count == 0 && matchedTracks.Count > 0)
-            ? matchedTracks
-            : freshTracks;
+        // Apply cache only to locally owned tracks
+        var freshLocal = _suggestionCache.ExcludeRecentlySuggested(localTracks);
+
+        // Override: if all local matches are cached, show them anyway rather than hiding
+        var localToReturn = (freshLocal.Count == 0 && localTracks.Count > 0)
+            ? localTracks
+            : freshLocal;
 
         _logger.LogInformation(
-            "[Recommendations] Gemini: {Total} | local match: {Matched} | after cache: {Fresh}{Override}",
+            "[Recommendations] Gemini: {Total} | local: {Local} | discovery: {Discovery} | after cache: {Fresh}{Override}",
             result.Tracks.Count,
-            matchedTracks.Count,
-            freshTracks.Count,
-            freshTracks.Count == 0 && matchedTracks.Count > 0 ? " (cache overridden — all matches already suggested)" : string.Empty);
+            localTracks.Count,
+            discoveryTracks.Count,
+            freshLocal.Count,
+            freshLocal.Count == 0 && localTracks.Count > 0 ? " (cache overridden)" : string.Empty);
 
-        _suggestionCache.MarkAsSuggested(tracksToReturn);
+        _suggestionCache.MarkAsSuggested(localToReturn);
 
+        // Preserve Gemini's original order; only drop local tracks excluded by the cache
+        var tracksToReturn = annotatedTracks
+            .Where(t => !t.InLocalLibrary || localToReturn.Contains(t))
+            .ToList();
         return new RecommendationResponse(result.Narrative, tracksToReturn, updatedHistory, message);
     }
 
-    private async Task<(IReadOnlyList<TrackSuggestion> Tracks, string? Message)> FilterAgainstLocalLibraryAsync(
+    private async Task<(IReadOnlyList<TrackSuggestion> Tracks, string? Message)> AnnotateWithLocalLibraryAsync(
         IReadOnlyList<TrackSuggestion> suggestions,
         CancellationToken cancellationToken)
     {
@@ -75,22 +84,19 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             var inventory = await _clementine.LoadInventoryAsync(cancellationToken);
             var threshold = _clementineOptions.MatchThreshold;
 
-            var matched = suggestions
-                .Where(s => inventory.Any(local => TrackMatcher.IsMatch(s, local, threshold)))
+            var annotated = suggestions
+                .Select(s => s with { InLocalLibrary = inventory.Any(local => TrackMatcher.IsMatch(s, local, threshold)) })
                 .ToList();
 
-            var message = matched.Count == 0
-                ? "None of the suggested tracks were found in your local library."
-                : null;
-
-            return (matched, message);
+            return (annotated, null);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "[Recommendations] Local library unavailable — returning empty suggestions");
+            _logger.LogWarning(ex, "[Recommendations] Local library unavailable — all tracks shown as discovery only");
+            var allAsDiscovery = suggestions.Select(s => s with { InLocalLibrary = false }).ToList();
             return (
-                [],
-                "Your local library is currently unavailable. Check that the database copy exists at the configured path."
+                allAsDiscovery,
+                "Your local library is currently unavailable. Showing all tracks as discovery suggestions."
             );
         }
     }

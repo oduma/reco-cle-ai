@@ -2,6 +2,21 @@
   flex-shrink: 0;
   width: 200px;
   cursor: default;
+  transition: border-color 0.2s;
+
+  &--local {
+    border-color: #00C8FF !important;
+
+    .track-icon { color: #00C8FF; }
+    .track-title { color: #00C8FF; }
+  }
+
+  &--discovery {
+    border-color: #FF2EBE !important;
+
+    .track-icon { color: #FF2EBE; }
+    .track-title { color: #FF2EBE; }
+  }
 }
 
 .card-content {
@@ -12,7 +27,6 @@
 }
 
 .track-icon {
-  color: var(--mat-sys-primary);
   flex-shrink: 0;
   margin-top: 2px;
   font-size: 20px;
@@ -25,12 +39,12 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex: 1;
 }
 
 .track-title {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--mat-sys-on-surface);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -52,4 +66,22 @@
   overflow: hidden;
   text-overflow: ellipsis;
   opacity: 0.8;
+}
+
+.youtube-link {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.youtube-icon {
+  width: 18px;
+  height: 18px;
 }

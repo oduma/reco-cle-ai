@@ -779,7 +779,9 @@ Confirm Phase 2 is stable enough to support local-library grounding work.
 
 ### Matching strategy
 
-Phase 3 filters Gemini's suggestions against the local Clementine library using **normalised fuzzy string matching**. Both the Gemini suggestion and the local track tag are normalised (lowercase, punctuation stripped, whitespace collapsed) before comparison. Artist + title are the primary match keys; album is an optional tiebreaker. Tracks that do not meet the match threshold are hidden from the suggestions panel.
+Phase 3 checks each Gemini suggestion against the local Clementine library using **normalised fuzzy string matching**. Both the Gemini suggestion and the local track tag are normalised (lowercase, punctuation stripped, whitespace collapsed) before comparison. Artist + title are the primary match keys; album is an optional tiebreaker.
+
+All tracks are returned to the frontend tagged with an `inLocalLibrary` flag. Tracks found in the local library are shown with a **blue** visual treatment; tracks not found are shown with a **magenta** treatment and a YouTube icon for quick discovery. Nothing is hidden from the user.
 
 External providers (Last.fm, MusicBrainz) are not used for matching. Local music files do not carry provider-assigned identifiers in their tags, so a canonical identity lookup would still resolve to a string comparison — adding latency with no improvement in match quality.
 
@@ -901,10 +903,13 @@ Update the recommendations endpoint so the suggestion list contains only tracks 
 
 ---
 
-## P3-007 — Update frontend suggestions panel for local-only results
+## P3-007 — Update frontend suggestions panel to show both local and discovery tracks
 
 ### Goal
-The suggestions panel already renders track cards. No structural change is needed for the hide-unmatched behavior because filtering happens on the backend. Ensure the frontend handles the empty state correctly when no local matches are found.
+Update the suggestions panel and track card component to render two visual variants based on the `inLocalLibrary` flag returned by the API.
+
+- Local tracks (blue `#00C8FF`): owned, playable from local library
+- Discovery tracks (magenta `#FF2EBE`): recommended but not owned; include a YouTube icon that links to a YouTube search for the track
 
 ### Suggested owner / agent
 - Angular Frontend Agent
@@ -914,9 +919,10 @@ The suggestions panel already renders track cards. No structural change is neede
 - P3-006
 
 ### Definition of done
-- suggestions panel renders the filtered local list correctly
-- empty state is clear when no local matches are returned
-- no frontend change is needed to hide individual cards (they are already absent from the response)
+- local tracks render with blue card border and title
+- discovery tracks render with magenta card border and title
+- discovery tracks show a YouTube icon linking to a YouTube search in a new tab
+- empty state is still handled when Gemini returns zero tracks
 
 ---
 
@@ -1015,6 +1021,36 @@ Fix awkward degraded states discovered during Phase 3 testing.
 ### Definition of done
 - DB failure behavior is safe and predictable
 - stale or invalid DB conditions are handled visibly
+
+---
+
+## P3C-006 — Show both local and discovery tracks with distinct visual styling
+
+### Goal
+Return all tracks that Gemini recommends — not just the ones present in the local library. Each track is tagged with whether it was found locally (`inLocalLibrary`).
+
+**Visual treatment:**
+- **In local library** → light blue accent (`#00C8FF`) card border and title
+- **Not in local library (discovery)** → magenta accent (`#FF2EBE`) card border and title, plus a YouTube icon that opens a YouTube search for that track in a new browser tab
+
+**Ordering:** locally owned tracks appear first, discovery tracks follow.
+
+**DB unavailable degradation:** when the Clementine DB cannot be loaded, all tracks are shown as discovery (magenta) with a warning message, rather than returning an empty list.
+
+**Suggestion cache:** caching still applies only to locally owned tracks (as per P3C-005). Discovery tracks are not cached.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- .NET API Agent
+
+### Dependencies
+- P3C-005
+
+### Definition of done
+- Both track types are returned from the API with `inLocalLibrary` flag
+- Blue cards for local tracks, magenta cards + YouTube icon for discovery tracks
+- YouTube icon opens `https://www.youtube.com/results?search_query=Artist+Title` in a new tab
+- DB failure returns all tracks as discovery rather than empty
 
 ---
 

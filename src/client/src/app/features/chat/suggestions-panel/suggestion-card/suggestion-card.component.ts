@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, computed, input } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { TrackSuggestion } from '../../../../core/services/recommendation.service';
@@ -12,4 +12,9 @@ import { TrackSuggestion } from '../../../../core/services/recommendation.servic
 })
 export class SuggestionCardComponent {
   suggestion = input.required<TrackSuggestion>();
+
+  youtubeUrl = computed(() => {
+    const q = encodeURIComponent(`${this.suggestion().artist} ${this.suggestion().title}`);
+    return `https://www.youtube.com/results?search_query=${q}`;
+  });
 }
