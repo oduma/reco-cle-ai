@@ -7,7 +7,7 @@ using Reco.Api.Models;
 
 namespace Reco.Api.Services;
 
-public class GeminiGatewayService : IGeminiGatewayService
+public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
 {
     private readonly HttpClient _httpClient;
     private readonly GeminiOptions _options;
@@ -129,7 +129,7 @@ public class GeminiGatewayService : IGeminiGatewayService
             null, System.Net.HttpStatusCode.TooManyRequests);
     }
 
-    public async Task<GeminiMusicRecommendation> GetMusicRecommendationAsync(
+    public async Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
         IReadOnlyList<ConversationTurn> history,
         CancellationToken cancellationToken = default)
@@ -223,7 +223,7 @@ public class GeminiGatewayService : IGeminiGatewayService
             null, System.Net.HttpStatusCode.TooManyRequests);
     }
 
-    private GeminiMusicRecommendation ParseMusicRecommendation(string rawJson)
+    private MusicRecommendationResult ParseMusicRecommendation(string rawJson)
     {
         try
         {
@@ -249,12 +249,12 @@ public class GeminiGatewayService : IGeminiGatewayService
             }
 
             _logger.LogInformation("[Gemini/Reco] Parsed {Count} tracks from response", tracks.Count);
-            return new GeminiMusicRecommendation(narrative, tracks);
+            return new MusicRecommendationResult(narrative, tracks);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[Gemini/Reco] Failed to parse recommendation JSON: {Raw}", rawJson);
-            return new GeminiMusicRecommendation(string.Empty, []);
+            return new MusicRecommendationResult(string.Empty, []);
         }
     }
 

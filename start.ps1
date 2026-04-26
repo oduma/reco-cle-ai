@@ -15,6 +15,8 @@
 # $env:RECOMMENDATION_MIN_TRACKS                = "10"
 # $env:RECOMMENDATION_MAX_TRACKS                = "20"
 # $env:RECOMMENDATION_SUGGESTION_CACHE_MINUTES  = "60"
+# $env:OLLAMA_BASE_URL                          = "http://localhost:11434"
+# $env:OLLAMA_MODEL                             = "llama3.1:8b"
 
 # ── Runtime config ────────────────────────────────────────────────────────────
 $env:ASPNETCORE_ENVIRONMENT = "Production"

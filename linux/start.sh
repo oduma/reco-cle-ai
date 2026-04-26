@@ -37,6 +37,8 @@ export ASPNETCORE_URLS="http://localhost:12500"
 # export RECOMMENDATION_MIN_TRACKS="10"
 # export RECOMMENDATION_MAX_TRACKS="20"
 # export RECOMMENDATION_SUGGESTION_CACHE_MINUTES="60"
+# export OLLAMA_BASE_URL="http://localhost:11434"
+# export OLLAMA_MODEL="llama3.1:8b"
 
 # Make binary executable (safe to run multiple times)
 chmod +x "$SCRIPT_DIR/Reco.Api"

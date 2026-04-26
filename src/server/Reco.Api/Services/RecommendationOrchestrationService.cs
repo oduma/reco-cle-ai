@@ -1,25 +1,29 @@
 using Microsoft.Extensions.Options;
 using Reco.Api.Configuration;
 using Reco.Api.DTOs;
+using Reco.Api.Models;
 
 namespace Reco.Api.Services;
 
 public class RecommendationOrchestrationService : IRecommendationOrchestrationService
 {
-    private readonly IGeminiGatewayService _gemini;
+    private readonly GeminiGatewayService _geminiGateway;
+    private readonly OllamaGatewayService _ollamaGateway;
     private readonly IClementineService _clementine;
     private readonly ISuggestionCacheService _suggestionCache;
     private readonly ClementineOptions _clementineOptions;
     private readonly ILogger<RecommendationOrchestrationService> _logger;
 
     public RecommendationOrchestrationService(
-        IGeminiGatewayService gemini,
+        GeminiGatewayService geminiGateway,
+        OllamaGatewayService ollamaGateway,
         IClementineService clementine,
         ISuggestionCacheService suggestionCache,
         IOptions<ClementineOptions> clementineOptions,
         ILogger<RecommendationOrchestrationService> logger)
     {
-        _gemini = gemini;
+        _geminiGateway = geminiGateway;
+        _ollamaGateway = ollamaGateway;
         _clementine = clementine;
         _suggestionCache = suggestionCache;
         _clementineOptions = clementineOptions.Value;
@@ -29,13 +33,40 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
     public async Task<RecommendationResponse> GetRecommendationsAsync(
         string prompt,
         IReadOnlyList<ConversationTurn> history,
+        string? preferredProvider = null,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation(
-            "[Recommendations] Requesting from Gemini | history turns: {HistoryCount} | prompt: {Length} chars",
-            history.Count, prompt.Length);
+        var useLocal = string.Equals(preferredProvider, "local", StringComparison.OrdinalIgnoreCase);
 
-        var result = await _gemini.GetMusicRecommendationAsync(prompt, history, cancellationToken);
+        _logger.LogInformation(
+            "[Recommendations] Requesting | provider: {Provider} | history turns: {HistoryCount} | prompt: {Length} chars",
+            useLocal ? "local" : "gemini", history.Count, prompt.Length);
+
+        MusicRecommendationResult result;
+        string providerUsed;
+        bool usedFallback = false;
+
+        if (useLocal)
+        {
+            try
+            {
+                result = await _ollamaGateway.GetMusicRecommendationAsync(prompt, history, cancellationToken);
+                providerUsed = "local";
+            }
+            catch (Exception ex) when (IsOllamaFailure(ex))
+            {
+                _logger.LogWarning("[Recommendations] Ollama unavailable ({Reason}) — falling back to Gemini",
+                    ex is TaskCanceledException ? "timeout" : "connection refused");
+                result = await _geminiGateway.GetMusicRecommendationAsync(prompt, history, cancellationToken);
+                providerUsed = "gemini";
+                usedFallback = true;
+            }
+        }
+        else
+        {
+            result = await _geminiGateway.GetMusicRecommendationAsync(prompt, history, cancellationToken);
+            providerUsed = "gemini";
+        }
 
         var updatedHistory = history
             .Append(new ConversationTurn("user", prompt))
@@ -47,16 +78,13 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         var localTracks     = annotatedTracks.Where(t => t.InLocalLibrary).ToList();
         var discoveryTracks = annotatedTracks.Where(t => !t.InLocalLibrary).ToList();
 
-        // Apply cache only to locally owned tracks
         var freshLocal = _suggestionCache.ExcludeRecentlySuggested(localTracks);
-
-        // Override: if all local matches are cached, show them anyway rather than hiding
-        var localToReturn = (freshLocal.Count == 0 && localTracks.Count > 0)
-            ? localTracks
-            : freshLocal;
+        var localToReturn = (freshLocal.Count == 0 && localTracks.Count > 0) ? localTracks : freshLocal;
 
         _logger.LogInformation(
-            "[Recommendations] Gemini: {Total} | local: {Local} | discovery: {Discovery} | after cache: {Fresh}{Override}",
+            "[Recommendations] Provider: {Provider}{Fallback} | Gemini: {Total} | local: {Local} | discovery: {Discovery} | after cache: {Fresh}{Override}",
+            providerUsed,
+            usedFallback ? " (fallback)" : string.Empty,
             result.Tracks.Count,
             localTracks.Count,
             discoveryTracks.Count,
@@ -65,12 +93,16 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
 
         _suggestionCache.MarkAsSuggested(localToReturn);
 
-        // Preserve Gemini's original order; only drop local tracks excluded by the cache
         var tracksToReturn = annotatedTracks
             .Where(t => !t.InLocalLibrary || localToReturn.Contains(t))
             .ToList();
-        return new RecommendationResponse(result.Narrative, tracksToReturn, updatedHistory, message);
+
+        return new RecommendationResponse(result.Narrative, tracksToReturn, updatedHistory, message, providerUsed, usedFallback);
     }
+
+    private static bool IsOllamaFailure(Exception ex) =>
+        ex is TaskCanceledException ||                          // timeout
+        (ex is HttpRequestException http && http.StatusCode is null); // connection refused — Ollama not running
 
     private async Task<(IReadOnlyList<TrackSuggestion> Tracks, string? Message)> AnnotateWithLocalLibraryAsync(
         IReadOnlyList<TrackSuggestion> suggestions,

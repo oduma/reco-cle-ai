@@ -2,6 +2,7 @@ import { Component, signal, ViewChild, ElementRef, AfterViewChecked, OnDestroy, 
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import {
   RecommendationService,
@@ -14,6 +15,8 @@ interface Message {
   role: 'user' | 'model';
   text: string;
 }
+
+const PROVIDER_KEY = 'reco-provider';
 
 const LOADING_PHRASES = [
   'Holding the note',
@@ -45,6 +48,7 @@ const LOADING_PHRASES = [
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
+    MatButtonToggleModule,
     MatIconModule,
     SuggestionsPanelComponent,
   ],
@@ -68,9 +72,15 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
 
   protected loadingPhrase = signal(LOADING_PHRASES[0]);
 
+  protected provider = signal<'gemini' | 'local'>(
+    (localStorage.getItem(PROVIDER_KEY) as 'gemini' | 'local') ?? 'gemini'
+  );
+  protected usedFallback = signal(false);
+
   private history: ConversationTurn[] = [];
   private shouldScroll = false;
   private loadingInterval: ReturnType<typeof setInterval> | null = null;
+  private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private recommendationService: RecommendationService) {
     effect(() => {
@@ -90,6 +100,7 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.loadingInterval !== null) clearInterval(this.loadingInterval);
+    if (this.fallbackTimer !== null) clearTimeout(this.fallbackTimer);
   }
 
   ngAfterViewChecked(): void {
@@ -97,6 +108,11 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
       this.scrollToBottom();
       this.shouldScroll = false;
     }
+  }
+
+  protected setProvider(value: 'gemini' | 'local'): void {
+    this.provider.set(value);
+    localStorage.setItem(PROVIDER_KEY, value);
   }
 
   protected send(): void {
@@ -108,6 +124,7 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
     this.loading.set(true);
     this.error.set(null);
     this.errorIsRateLimit.set(false);
+    this.usedFallback.set(false);
     this.shouldScroll = true;
 
     this.suggestionsLoading.set(true);
@@ -115,7 +132,7 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
     this.suggestionsMessage.set(null);
     this.hasSuggestions.set(true);
 
-    this.recommendationService.getRecommendations(text, this.history).subscribe({
+    this.recommendationService.getRecommendations(text, this.history, this.provider()).subscribe({
       next: response => {
         this.messages.update(msgs => [
           ...msgs,
@@ -127,6 +144,12 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
         this.loading.set(false);
         this.suggestionsLoading.set(false);
         this.shouldScroll = true;
+
+        if (response.usedFallback) {
+          this.usedFallback.set(true);
+          if (this.fallbackTimer !== null) clearTimeout(this.fallbackTimer);
+          this.fallbackTimer = setTimeout(() => this.usedFallback.set(false), 8000);
+        }
       },
       error: err => {
         const isRateLimit = err.status === 429;

@@ -1024,6 +1024,38 @@ Fix awkward degraded states discovered during Phase 3 testing.
 
 ---
 
+## P3C-007 — Local LLM support via Ollama with Gemini fallback
+
+### Goal
+Allow the user to choose between the Gemini cloud model and a locally-running Ollama model per-request, with automatic fallback to Gemini if Ollama is unreachable.
+
+**Provider selection:** a compact toggle in the chat header ("Local" / "Gemini"). Selection persists in `localStorage` across page loads.
+
+**Fallback:** when "Local" is selected but Ollama is not running, the request falls back to Gemini automatically. A discreet amber chip appears below the header for ~8 seconds informing the user that Gemini was used.
+
+**Ollama integration:** uses Ollama's OpenAI-compatible `/v1/chat/completions` endpoint with `response_format: json_object` and an explicit JSON schema in the system prompt.
+
+**Configuration:**
+- `OLLAMA_BASE_URL` (default `http://localhost:11434`)
+- `OLLAMA_MODEL` (default `llama3.1:8b`) — both overridable via environment variable
+
+**Recommended model:** `llama3.1:8b` — good music knowledge, reliable JSON output, fits in 32 GB RAM (CPU-only). Install with `ollama pull llama3.1`.
+
+### Suggested owner / agent
+- .NET API Agent
+- Angular Frontend Agent
+
+### Dependencies
+- P3C-005
+
+### Definition of done
+- Header toggle switches between Local and Gemini providers
+- Provider choice is sent with every request and persisted in localStorage
+- Ollama unavailable → automatic Gemini fallback + discreet amber chip in UI
+- Ollama model name and base URL are configurable via env vars
+
+---
+
 ## P3C-006 — Show both local and discovery tracks with distinct visual styling
 
 ### Goal

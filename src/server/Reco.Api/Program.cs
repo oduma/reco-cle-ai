@@ -31,6 +31,17 @@ builder.Services.Configure<RecommendationOptions>(options =>
         options.SuggestionCacheDurationMinutes = cacheMins;
 });
 
+builder.Services.Configure<OllamaOptions>(options =>
+{
+    builder.Configuration.GetSection(OllamaOptions.SectionName).Bind(options);
+
+    var baseUrl = builder.Configuration["OLLAMA_BASE_URL"];
+    if (!string.IsNullOrWhiteSpace(baseUrl)) options.BaseUrl = baseUrl;
+
+    var model = builder.Configuration["OLLAMA_MODEL"];
+    if (!string.IsNullOrWhiteSpace(model)) options.Model = model;
+});
+
 builder.Services.Configure<ClementineOptions>(options =>
 {
     builder.Configuration.GetSection(ClementineOptions.SectionName).Bind(options);
@@ -42,7 +53,12 @@ builder.Services.Configure<ClementineOptions>(options =>
         options.MatchThreshold = threshold;
 });
 
-builder.Services.AddHttpClient<IGeminiGatewayService, GeminiGatewayService>();
+builder.Services.AddHttpClient<GeminiGatewayService>();
+builder.Services.AddHttpClient<OllamaGatewayService>(client =>
+{
+    // CPU inference on a local model can take several minutes — give it room
+    client.Timeout = TimeSpan.FromMinutes(5);
+});
 builder.Services.AddSingleton<IClementineService, ClementineService>();
 builder.Services.AddSingleton<ISuggestionCacheService, SuggestionCacheService>();
 builder.Services.AddScoped<IRecommendationOrchestrationService, RecommendationOrchestrationService>();

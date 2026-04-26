@@ -2,7 +2,22 @@
   <header class="chat-header">
     <img src="mainimage.png" alt="" aria-hidden="true" class="header-logo" />
     <span class="chat-title">Music Discovery</span>
+    <mat-button-toggle-group
+      class="provider-toggle"
+      [value]="provider()"
+      (change)="setProvider($event.value)"
+      aria-label="AI provider">
+      <mat-button-toggle value="local" aria-label="Use local Ollama model">Local</mat-button-toggle>
+      <mat-button-toggle value="gemini" aria-label="Use Gemini cloud model">Gemini</mat-button-toggle>
+    </mat-button-toggle-group>
   </header>
+
+  @if (usedFallback()) {
+    <div class="fallback-chip" role="status" aria-live="polite">
+      <mat-icon aria-hidden="true">cloud</mat-icon>
+      <span>Local model unavailable — used Gemini</span>
+    </div>
+  }
 
   @if (hasSuggestions()) {
     <app-suggestions-panel

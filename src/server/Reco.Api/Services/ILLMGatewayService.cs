@@ -3,9 +3,9 @@ using Reco.Api.Models;
 
 namespace Reco.Api.Services;
 
-public interface IGeminiGatewayService : ILLMGatewayService
+public interface ILLMGatewayService
 {
-    Task<string> SendMessageAsync(
+    Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
         IReadOnlyList<ConversationTurn> history,
         CancellationToken cancellationToken = default);

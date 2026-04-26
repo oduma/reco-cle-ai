@@ -17,6 +17,7 @@ export interface TrackSuggestion {
 export interface RecommendationRequest {
   prompt: string;
   history: ConversationTurn[];
+  provider: 'gemini' | 'local';
 }
 
 export interface RecommendationResponse {
@@ -24,6 +25,8 @@ export interface RecommendationResponse {
   suggestions: TrackSuggestion[];
   history: ConversationTurn[];
   message: string | null;
+  providerUsed: string;
+  usedFallback: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -33,10 +36,12 @@ export class RecommendationService {
   getRecommendations(
     prompt: string,
     history: ConversationTurn[],
+    provider: 'gemini' | 'local' = 'gemini',
   ): Observable<RecommendationResponse> {
     return this.http.post<RecommendationResponse>('/api/recommendations', {
       prompt,
       history,
+      provider,
     } satisfies RecommendationRequest);
   }
 }

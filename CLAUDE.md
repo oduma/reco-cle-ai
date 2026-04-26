@@ -101,6 +101,8 @@ Use these locations as the primary sources of truth:
 - `RECOMMENDATION_MIN_TRACKS`
 - `RECOMMENDATION_MAX_TRACKS`
 - `RECOMMENDATION_SUGGESTION_CACHE_MINUTES`
+- `OLLAMA_BASE_URL`
+- `OLLAMA_MODEL`
 
 ## Build / Test Expectations
 When making changes, always consider:

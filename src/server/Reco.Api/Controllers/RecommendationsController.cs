@@ -28,7 +28,7 @@ public class RecommendationsController : ControllerBase
         try
         {
             var history = request.History ?? [];
-            var result = await _orchestration.GetRecommendationsAsync(request.Prompt, history, cancellationToken);
+            var result = await _orchestration.GetRecommendationsAsync(request.Prompt, history, request.Provider, cancellationToken);
             return Ok(result);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
