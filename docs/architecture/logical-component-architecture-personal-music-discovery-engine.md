@@ -12,11 +12,13 @@ It translates the previously defined:
 
 into a concrete set of **components**, **services**, and **modules**.
 
-This version is based on the following implementation assumption:
+This version reflects the following implementation:
 
-- the system will use the **Gemini Developer API** with **Gemini 2.5 Pro** on the **free tier** for selected AI tasks,
-- while **outside-world music evidence retrieval** will continue to come from external music data sources such as MusicBrainz, Last.fm, and Discogs,
-- and the user's local music inventory will continue to be grounded in the **Clementine SQLite-backed library**.
+- the system uses **Gemini** (cloud) or **Ollama** (local LLM) for recommendation narrative and structured track list generation — no external music metadata providers (MusicBrainz, Last.fm, Discogs) are used,
+- the user's local music inventory is grounded via the **Clementine SQLite-backed library** using normalised fuzzy string matching,
+- and Phase 4 adds direct **Clementine Remote** player control via TCP/protobuf.
+
+> **Note:** Some sections of this document describe components planned for a more complex future architecture (retrieval orchestrator, world candidate graph, ranking engine, etc.). These have not been implemented. The current implementation is the Recommendation Orchestration Service described in the query execution sequence diagram.
 
 ---
 
@@ -36,39 +38,27 @@ The architecture must:
 
 ## 3. Key Runtime Assumptions
 
-### 3.1 AI Interpretation and Explanation Layer
+### 3.1 LLM Layer
 
-The system will use **Gemini 2.5 Pro** via the **Gemini Developer API free tier** for:
+The system uses either:
+- **Gemini** (cloud, via Gemini Developer API) — default provider
+- **Ollama** (local, OpenAI-compatible API) — optional, user-selectable per request via UI toggle
 
-- prompt interpretation,
-- structured intent generation,
-- explanation generation,
-- and optionally some semantic reranking assistance.
+The active LLM returns a conversational narrative and a structured track list in a single call. No separate interpretation or ranking stage is needed.
 
-### 3.2 Gemini Free-Tier Constraints That Affect Architecture
+### 3.2 LLM Provider Constraints
 
-The architecture must explicitly account for the following Google-documented constraints:
+- Gemini is rate-limited per project. The app avoids unnecessary API calls.
+- Ollama runs locally with no API key. CPU inference takes 60–120 seconds per request. The HTTP client timeout is set to 5 minutes.
+- If Ollama is selected but unavailable (timeout or connection refused), the system falls back to Gemini automatically.
 
-1. **Gemini 2.5 Pro currently shows free-of-charge input and output pricing on the free tier**.  
-2. **Rate limits are applied per project, not per API key**.  
-3. **Rate limits vary by model and tier, and active limits should be viewed in AI Studio rather than hard-coded from static documentation**.  
-4. **Grounding with Google Search / Maps is not available on the free tier for Gemini 2.5 Pro**.  
-5. **On the free tier, content may be used to improve Google products**.  
-6. **Paid tier adds higher rate limits, context caching, Batch API, and different data-handling terms**.
+### 3.3 Local Inventory Layer
 
-Because of item 4, the architecture must **not rely on Gemini grounding** for world-knowledge retrieval in this version.
+The user's locally-owned collection is retrieved from the **Clementine SQLite database copy** at the path configured by `CLEMENTINE_DB_PATH`. The copy is read-only and does not affect the running player.
 
-### 3.3 Outside-World Retrieval Layer
+### 3.4 Clementine Remote Layer (Phase 4)
 
-Outside-world music evidence will continue to come from external music providers such as:
-
-- **MusicBrainz** for canonical artist/release/recording metadata,
-- **Last.fm** for tags, similarity, and discovery signals,
-- **Discogs** for release/genre/style-oriented metadata.
-
-### 3.4 Local Inventory Layer
-
-The user's locally-owned collection will continue to be retrieved from the **Clementine database / library layer**, which is SQLite-backed and already stores persistent music library metadata.
+Direct player control uses the **Clementine Remote TCP/protobuf protocol** on port 5501 (configurable). This enables adding tracks to the current playlist or creating a new named playlist.
 
 ---
 
@@ -92,29 +82,19 @@ The system should be treated as:
 ## 5. High-Level Logical View
 
 ```text
-User Interface
+User Interface (provider toggle: Gemini / Local)
     ↓
-Request Intake & Session Layer
+Recommendation Orchestration Service
     ↓
-Intent Interpretation Layer (Gemini 2.5 Pro)
+LLM Gateway (Gemini or Ollama)
     ↓
-External Retrieval Orchestrator
+Clementine DB Adapter (local inventory fuzzy matching)
     ↓
-Provider Adapters (MusicBrainz / Last.fm / Discogs)
+Suggestion Cache Service
     ↓
-World Candidate Graph Builder
+API Response (narrative + annotated tracks)
     ↓
-Local Collection Adapter (Clementine)
-    ↓
-Grounding Engine
-    ↓
-Ranking Engine
-    ↓
-Explanation Layer (Gemini 2.5 Pro)
-    ↓
-Response Composer
-    ↓
-Feedback Capture
+[Phase 4] Clementine Remote Adapter (player control)
 ```
 
 Supporting all of the above:
@@ -286,27 +266,24 @@ This layer owns provider fan-out and collection of provider evidence, but not pr
 
 ---
 
-## 6.7 Provider Adapters
+## 6.7 LLM Gateways
+
+> **Note:** External music metadata provider adapters (originally planned for MusicBrainz, Last.fm, Discogs) are not implemented. The LLM gateway is the sole music knowledge source.
 
 ### Purpose
-Encapsulate each external provider behind a clean adapter boundary.
+Encapsulate each LLM provider behind a clean gateway boundary implementing `ILLMGatewayService`.
 
-### Adapters
-- MusicBrainz Adapter
-- Last.fm Adapter
-- Discogs Adapter
+### Gateways
+- GeminiGatewayService
+- OllamaGatewayService
 
 ### Responsibilities
-- translate intent-derived queries into provider-specific requests,
-- normalize provider responses into provider-local structures,
-- emit **External Evidence Packets**,
-- preserve provider-specific confidence and metadata.
-
-### Why these are separate
-Each provider has different strengths, rate limits, identifiers, and response structures.
+- send conversation history + prompt to the LLM,
+- parse structured JSON track list from the response,
+- return a `MusicRecommendationResult` (narrative + track list).
 
 ### Notes
-Adapters should be stateless where possible, with caching handled outside the adapter itself.
+Gateways are stateless. Provider routing (Gemini vs Ollama) and fallback logic live in the orchestration service.
 
 ---
 
@@ -521,7 +498,7 @@ Reduce repeated provider calls and soften free-tier API constraints.
 ### Notes
 This cache is especially important because:
 - Gemini free-tier limits are project-scoped,
-- provider APIs such as MusicBrainz / Last.fm / Discogs also impose their own practical constraints.
+- Ollama CPU inference takes 60–120 seconds per request — avoiding duplicate calls matters.
 
 ---
 
@@ -590,14 +567,13 @@ Modules:
 - Clarification Decision Service
 - Gemini Gateway
 
-## 7.3 Retrieval Layer
+## 7.3 LLM Gateway Layer
 
 Modules:
-- External Retrieval Orchestrator
-- MusicBrainz Adapter
-- Last.fm Adapter
-- Discogs Adapter
-- World Candidate Graph Builder
+- GeminiGatewayService
+- OllamaGatewayService
+- Recommendation Orchestration Service
+- Suggestion Cache Service
 
 ## 7.4 Collection Grounding Layer
 
@@ -644,11 +620,9 @@ Gemini 2.5 Pro is a strong fit here for:
 
 because it is available on the free tier for input/output token usage.
 
-However, the architecture deliberately keeps **world-knowledge retrieval outside Gemini** because:
-- free-tier **grounding with Google Search / Maps is not available** for Gemini 2.5 Pro,
-- and free-tier usage is also subject to project-level rate limits.
-
-This is why the architecture preserves independent retrieval adapters for MusicBrainz / Last.fm / Discogs.
+However, the architecture deliberately uses Ollama as a cost-free local alternative:
+- free-tier Gemini usage is subject to project-level rate limits,
+- and local inference has no API cost, only CPU time.
 
 ## 9.2 Rate-Limit Safety
 
@@ -677,22 +651,14 @@ This leads to a design preference:
 
 For V1, the most practical implementation boundaries are:
 
-### Core components to implement first
-1. Request Intake Service
-2. Session Context Service
-3. Gemini Gateway
-4. Intent Interpretation Service
-5. External Retrieval Orchestrator
-6. MusicBrainz / Last.fm / Discogs Adapters
-7. World Candidate Graph Builder
-8. Local Collection Adapter
-9. Grounding Engine
-10. Ranking Engine
-11. Explanation Service
-12. Response Composer
-13. Feedback Capture Service
-14. Cache Layer
-15. Observability & Diagnostics
+### Core components (current implementation)
+1. GeminiGatewayService
+2. OllamaGatewayService
+3. Recommendation Orchestration Service
+4. Clementine DB Adapter (ClementineService)
+5. Suggestion Cache Service
+6. Recommendations API endpoint
+7. [Phase 4] Clementine Remote Service
 
 ### Components that can stay simple in V1
 - Clarification Decision Service
@@ -769,18 +735,14 @@ The architecture should degrade gracefully in these cases:
 
 ## 14. Executive Summary
 
-The logical architecture for this version of the Personal Music Discovery Engine is built around three major logical subsystems:
+The logical architecture for the Personal Music Discovery Engine is built around three major concerns:
 
-1. **AI-assisted interpretation and explanation** using **Gemini 2.5 Pro** on the Gemini Developer API free tier,
-2. **world-knowledge retrieval** using dedicated provider adapters for **MusicBrainz**, **Last.fm**, and **Discogs**,
-3. **grounding and ranking** against the user's **Clementine-backed local inventory**.
+1. **LLM-based recommendation** using **Gemini** (cloud) or **Ollama** (local) — the LLM is both the recommender and the narrative explainer in a single call,
+2. **local library annotation** using the **Clementine-backed SQLite copy** with normalised fuzzy string matching,
+3. **Phase 4 player control** using the **Clementine Remote TCP/protobuf protocol**.
 
-This architecture intentionally avoids treating Gemini as the world-retrieval engine because free-tier Gemini 2.5 Pro does not provide free Google Search / Maps grounding for that route.
+No external music metadata providers (MusicBrainz, Last.fm, Discogs) are used. Local music files do not carry provider-assigned identifiers, so direct fuzzy matching against the Clementine DB is both simpler and more effective.
 
-Instead, it uses Gemini where Gemini is strongest and cheapest for this design:
-- structured prompt interpretation,
-- and user-facing explanation.
+The result is a modular, testable architecture that preserves the core product promise:
 
-The result is a modular, traceable, and implementation-ready architecture that preserves the core product promise:
-
-> understand the user's music idea using AI and outside-world evidence, then recommend only what the user already owns.
+> ask about music in natural language → see what you own (blue) and what you could discover (magenta) → add the best local tracks to Clementine with one click.

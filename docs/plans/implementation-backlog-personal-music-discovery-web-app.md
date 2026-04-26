@@ -27,7 +27,9 @@ The backlog is organized into:
 5. **Phase 2 Correction Loop**
 6. **Phase 3 — Clementine local filtering**
 7. **Phase 3 Correction Loop**
-8. **Cross-cutting Hardening / Production Readiness**
+8. **Phase 4 — Clementine player control**
+9. **Phase 4 Correction Loop**
+10. **Cross-cutting Hardening / Production Readiness**
 
 Each backlog item contains:
 
@@ -536,7 +538,7 @@ Add a backend service that issues a single Gemini call returning both:
 - the conversational chat narrative, and
 - a structured JSON track list (title, artist, album per item).
 
-Gemini is the sole source of recommendations in Phase 2. External providers (Last.fm, MusicBrainz) are not called here — their role is canonical identity resolution for local library matching, which belongs in Phase 3.
+Gemini is the sole source of recommendations in Phase 2. No external provider calls are made in this phase.
 
 ### Suggested owner / agent
 - .NET API Agent
@@ -1130,7 +1132,175 @@ Confirm the product now behaves as a personal local-collection discovery tool.
 
 ---
 
-## 11. Cross-Cutting Hardening Backlog
+## 11. Phase 4 Backlog — Clementine Player Control
+
+## P4-000 — Extend Clementine DB adapter to read filename
+
+### Goal
+Update `ClementineService.LoadInventoryAsync` to also select the `filename` column from the Clementine `songs` table. Propagate the file path through `LocalTrack`, `TrackSuggestion` (backend and frontend DTO), and the orchestration annotation step.
+
+### Suggested owner / agent
+- Domain & Provider Integration Agent
+- .NET API Agent
+
+### Dependencies
+- P3C-004
+
+### Definition of done
+- `LocalTrack` carries a `FilePath` property
+- `TrackSuggestion` carries a `FilePath: string?` — non-null for local tracks, null for discovery tracks
+- The frontend `TrackSuggestion` model exposes `filePath?: string`
+
+---
+
+## P4-001 — Implement ClementineRemoteService (TCP / protobuf)
+
+### Goal
+Implement a backend service that opens a short-lived TCP connection to the Clementine Remote port, sends a protobuf-encoded `INSERT_URLS` or `CREATE_PLAYLIST` + `INSERT_URLS` message, and closes the connection. Handle connection refused as a typed 503 response.
+
+### Suggested owner / agent
+- Domain & Provider Integration Agent
+- .NET API Agent
+
+### Dependencies
+- P4-000
+
+### Definition of done
+- `IClementineRemoteService` interface exists with `AddTrackToCurrentPlaylistAsync` and `CreatePlaylistFromTracksAsync`
+- `ClementineRemoteService` implements the interface using TCP + `Google.Protobuf`
+- `ClementineRemoteOptions` (`Host`, `Port`) are configurable via `CLEMENTINE_REMOTE_HOST` and `CLEMENTINE_REMOTE_PORT` environment variables
+- Connection refused produces a descriptive 503, not an unhandled exception
+
+---
+
+## P4-002 — Add track to current playlist endpoint (Phase 4.1)
+
+### Goal
+Expose `POST /api/playlist/track` that accepts a `{ filePath }` body and delegates to `IClementineRemoteService.AddTrackToCurrentPlaylistAsync`.
+
+### Suggested owner / agent
+- .NET API Agent
+
+### Dependencies
+- P4-001
+
+### Definition of done
+- Endpoint accepts `filePath` and forwards to Clementine Remote
+- Returns 204 on success
+- Returns 503 with message when Clementine is not running / Remote not enabled
+- Returns 400 when `filePath` is null or empty
+
+---
+
+## P4-003 — Add queue icon to local track cards (Phase 4.1)
+
+### Goal
+Show a small queue/add-to-playlist icon on local (blue) track cards. Clicking it calls `POST /api/playlist/track`. Display a `MatSnackBar` on success or failure.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- Angular Material UX Agent
+
+### Dependencies
+- P4-002
+- P4-000
+
+### Definition of done
+- Queue icon is visible on local track cards and absent on discovery cards
+- Click fires `POST /api/playlist/track` with the track's `filePath`
+- Success snackbar: "Added to playlist"
+- Failure snackbar: "Could not add track — is Clementine running and Remote enabled?"
+
+---
+
+## P4-004 — Create playlist endpoint (Phase 4.2)
+
+### Goal
+Expose `POST /api/playlist/create` that accepts `{ name, filePaths[] }` and delegates to `IClementineRemoteService.CreatePlaylistFromTracksAsync`.
+
+### Suggested owner / agent
+- .NET API Agent
+
+### Dependencies
+- P4-001
+
+### Definition of done
+- Endpoint accepts `name` and `filePaths[]` and creates a new Clementine playlist
+- Returns 204 on success
+- Returns 503 when Clementine is unavailable
+- Returns 400 when `filePaths` is empty
+
+---
+
+## P4-005 — "Build playlist from local songs" button (Phase 4.2)
+
+### Goal
+Add a "Build playlist from local songs" button to the suggestions panel header. The button is only shown when at least one local track is present. Clicking it calls `POST /api/playlist/create` with all local suggestion tracks.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- Angular Material UX Agent
+
+### Dependencies
+- P4-004
+
+### Definition of done
+- Button is visible in suggestions panel header only when ≥1 local track is present
+- Button is hidden when no local tracks are present
+- Clicking creates a Clementine playlist named `"Reco — {date}"`
+- Success snackbar: "Playlist created in Clementine"
+- Failure snackbar: "Could not create playlist — is Clementine running and Remote enabled?"
+
+---
+
+## P4-006 — Phase 4 demo and manual test pass
+
+### Goal
+Run the Phase 4 manual checklist from the phased development plan.
+
+### Suggested owner / agent
+- Platform, Quality, and DevOps Agent
+- Angular Frontend Agent
+- .NET API Agent
+
+### Dependencies
+- P4-001 through P4-005
+
+### Definition of done
+- Phase 4 manual checklist completed
+- Issues logged into Phase 4 correction backlog
+
+---
+
+## 11a. Phase 4 Correction Loop Backlog
+
+## P4C-001 — Fix file path format issues (Windows vs Linux)
+
+### Goal
+Verify and correct any path formatting inconsistencies between Windows (`C:\...`) and Linux paths when sent to `INSERT_URLS`.
+
+### Dependencies
+- P4-006
+
+### Definition of done
+- Clementine accepts file paths on both Windows and Linux deployments
+
+---
+
+## P4C-002 — Phase 4 stabilization sign-off
+
+### Goal
+Confirm Phase 4 is stable and both playlist operations work reliably.
+
+### Dependencies
+- P4C-001
+
+### Definition of done
+- Phase 4 exit criteria passed
+
+---
+
+## 12. Cross-Cutting Hardening Backlog
 
 ## X-001 — Add backend health checks beyond baseline
 
@@ -1224,7 +1394,7 @@ Define deployment-ready defaults for:
 
 ---
 
-## 12. Suggested Milestones
+## 13. Suggested Milestones
 
 ## Milestone A — Foundation Ready
 Includes:
@@ -1245,13 +1415,18 @@ Includes:
 - P3-001 through P3-009
 - P3C-001 through P3C-004
 
-## Milestone E — Hardening Baseline
+## Milestone E — Phase 4 Complete
+Includes:
+- P4-000 through P4-006
+- P4C-001 through P4C-002
+
+## Milestone F — Hardening Baseline
 Includes:
 - X-001 through X-005 as appropriate
 
 ---
 
-## 13. Recommended First Execution Order
+## 14. Recommended First Execution Order
 
 If you want the smallest practical path to a working build, start in this order:
 
@@ -1277,7 +1452,7 @@ Only then move into Phase 2.
 
 ---
 
-## 14. Executive Summary
+## 15. Executive Summary
 
 This backlog turns the phased development plan into an actionable implementation roadmap.
 
@@ -1286,6 +1461,7 @@ The delivery sequence is intentionally incremental:
 - **Phase 1:** chat-only
 - **Phase 2:** chat + web suggestions
 - **Phase 3:** chat + web suggestions filtered/grounded to Clementine local ownership
+- **Phase 4:** Clementine player control — add a track or build a playlist from suggestions
 
 The critical rule is this:
 

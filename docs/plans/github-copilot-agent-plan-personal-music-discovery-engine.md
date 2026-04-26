@@ -8,9 +8,10 @@ It is designed for a solution with:
 
 - **Angular + Angular Material** on the client side
 - **ASP.NET Core Web API** on the server side
-- a **Gemini-assisted interpretation/explanation layer**
-- external provider integration for music metadata/signals
-- local-library grounding and ranking logic
+- a **Gemini or Ollama LLM** for recommendation and narrative generation
+- **Clementine DB** adapter for local library annotation
+- **Clementine Remote** adapter for Phase 4 player control
+- local-library grounding via normalised fuzzy matching
 
 The goal is to give GitHub Copilot a clear set of specialist agents with well-defined responsibilities and boundaries.
 
@@ -251,21 +252,22 @@ Build the ASP.NET Core API surface, endpoint contracts, validation, authenticati
 ## Agent 6 — Domain & Provider Integration Agent
 
 ### Mission
-Implement application/domain services and external provider adapters for music retrieval and local-library access.
+Implement application/domain services and adapters for local-library access and Clementine player integration.
 
 ### Primary responsibilities
-- implement provider adapters for MusicBrainz / Last.fm / Discogs
-- implement local-library adapter(s)
-- implement caching-aware retrieval orchestration support
-- normalize provider payloads into domain-friendly structures
-- protect the core from provider-specific quirks
+- implement Clementine DB adapter (SQLite read)
+- implement Clementine Remote adapter (TCP / protobuf)
+- implement LLM gateway adapters (Gemini, Ollama)
+- implement suggestion cache service
+- normalize adapter payloads into domain-friendly structures
+- protect the core from infrastructure quirks
 
 ### Owns
-- provider adapters
-- provider normalization logic
-- local inventory adapter
-- retrieval orchestration helper logic
-- provider-facing resilience logic support
+- Clementine DB adapter
+- Clementine Remote adapter
+- LLM gateway adapters
+- suggestion cache service
+- local inventory adapter and fuzzy matching logic
 
 ### Does not own
 - Angular
@@ -468,8 +470,9 @@ Use the Solution Architect Agent as the default review agent for:
 - OpenAPI annotations/setup
 
 ## Domain & Provider Integration Agent
-- provider adapters
-- local-library adapter
+- Clementine DB adapter
+- Clementine Remote adapter
+- LLM gateway adapters (Gemini, Ollama)
 - normalized domain models
 - retrieval orchestration support
 

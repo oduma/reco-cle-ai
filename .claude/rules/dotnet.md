@@ -25,7 +25,7 @@ Use this rule when working in backend API, application, or infrastructure code.
 - Never leak credentials to the frontend.
 
 ## Providers
-- Gemini, Last.fm, MusicBrainz, Discogs, and Clementine must all be backend-only integrations.
+- Gemini, Ollama, Clementine DB, and Clementine Remote must all be backend-only integrations.
 - Normalize provider data into application-owned models.
 - Respect rate limits and graceful degradation.
 - Caching should be used where appropriate to reduce repeated provider calls.

@@ -93,6 +93,25 @@ This is the point where the product becomes meaningfully personal.
 
 ---
 
+## Phase 4 — Clementine Player Control
+
+### Goal
+Allow the user to interact with the running Clementine player directly from the web app.
+
+Phase 4 has two sub-phases:
+
+**Phase 4.1 — Add a single track to the current Clementine playlist**
+A small queue icon on each local (blue) track card lets the user add that track to Clementine's current playlist with one click.
+
+**Phase 4.2 — Build a playlist from all local suggestions**
+A “Build playlist from local songs” button in the suggestions panel header creates a new named Clementine playlist containing all local tracks from the current suggestion set.
+
+### Main user value
+The app moves from a read-only discovery tool to an active player control surface.
+You can hear the music Gemini recommended without leaving the app.
+
+---
+
 ## 4. Cross-Phase Working Rules
 
 These rules apply to **every phase**.
@@ -242,11 +261,9 @@ Enhance the application so that each user request produces two coordinated outpu
 
 The suggestions panel is not a separate retrieval from a different source. It is the structured form of what Gemini already said. Gemini is asked to return both a free-text narrative and a JSON track list in one response.
 
-### Why external providers (Last.fm, MusicBrainz, Discogs) are not used here
+### Why only Gemini is used here
 
-Gemini is the recommender. The providers are not needed as a second opinion or a separate data source in Phase 2.
-
-The value of those providers becomes clear in Phase 3: Gemini can suggest tracks that are hard to match against local files by name alone. Last.fm and MusicBrainz give each track a canonical identity (e.g. a MusicBrainz ID) that makes matching against the Clementine library reliable rather than a fragile fuzzy string search. That grounding role belongs in Phase 3, not Phase 2.
+Gemini is the recommender. No external provider calls are made in Phase 2. Local library matching, which requires the Clementine DB, belongs in Phase 3.
 
 ## 6.2 Scope
 
@@ -262,7 +279,7 @@ The value of those providers becomes clear in Phase 3: Gemini can suggest tracks
 - partial-failure behavior when parsing fails but the chat narrative still succeeds
 
 ### Out of scope
-- external provider calls (Last.fm, MusicBrainz, Discogs) — these belong in Phase 3
+- Clementine local-library filtering — belongs in Phase 3
 - local-library filtering
 - Clementine integration
 - final personal-only ranking
@@ -344,11 +361,11 @@ into:
 
 Tracks that Gemini suggests but are not found in the local library are **hidden from the suggestions panel**. The result is a clean, personal list — not a general web recommendation.
 
-### Why external providers (Last.fm, MusicBrainz) are not used here
+### Why external providers are not used for local matching
 
-The plan originally assumed that Last.fm and MusicBrainz could provide canonical track identities to make local matching reliable. This assumption does not hold: local music files do not carry MusicBrainz IDs or Last.fm identifiers in their tags, so a provider lookup produces no identifier that can be compared against the local file. The canonical identity would still have to be reconciled with local tags by string comparison — so the provider step adds cost and latency without improving match quality.
+Local music files do not carry MusicBrainz IDs or other provider-assigned identifiers in their tags. Any provider lookup would still require string comparison against local file tags to find a match — adding latency and cost without improving match quality.
 
-Instead, Phase 3 uses **normalised fuzzy string matching** directly against the Clementine library:
+Phase 3 instead uses **normalised fuzzy string matching** directly against the Clementine library:
 - both sides are normalised: lowercase, punctuation stripped, whitespace collapsed
 - artist + title are matched using a similarity measure (e.g. Jaro-Winkler or token overlap)
 - album is used as an optional tiebreaker where available
@@ -373,7 +390,7 @@ The path to the database copy is configurable via the `CLEMENTINE_DB_PATH` envir
 - safe degraded behavior when the database copy is missing or unreadable
 
 ### Out of scope
-- external provider calls (Last.fm, MusicBrainz, Discogs) — not useful for matching without local MusicBrainz IDs
+- external music metadata provider calls — not needed; fuzzy string matching is sufficient
 - “local equivalent” approximate-match UI — Phase 3 is match or hide; equivalents can be a later refinement
 - automatic play triggering in Clementine
 - bulk library metadata correction tooling
@@ -435,16 +452,123 @@ Phase 3 is complete when:
 
 ---
 
-## 8. Correction Loop Template for Every Phase
+## 8. Phase 4 — Clementine Player Control
+
+## 8.1 Objective
+
+Add direct control of the running Clementine music player from the web app using the **Clementine Remote TCP/protobuf protocol** (port 5501 by default).
+
+This phase is split into two sub-phases:
+
+**Phase 4.1:** queue a single track into Clementine's current playlist by clicking a queue icon on a local suggestion card.
+
+**Phase 4.2:** build a new named Clementine playlist from all locally matched tracks in the current suggestion set by clicking a "Build playlist from local songs" button.
+
+### Prerequisite
+
+Before 4.1 or 4.2 can work, the Clementine DB adapter must also read the `filename` column from the `songs` table. This file path is required by the Clementine Remote `INSERT_URLS` message. It flows through the stack as `TrackSuggestion.FilePath`.
+
+## 8.2 Scope
+
+### In scope (Phase 4.1)
+- Extend Clementine DB adapter to read `filename` from `songs`
+- Add `FilePath: string?` to `LocalTrack`, `TrackSuggestion` (backend + frontend)
+- `IClementineRemoteService` / `ClementineRemoteService` — TCP protobuf client
+- `ClementineRemoteOptions` — `Host` (default `localhost`) and `Port` (default `5501`)
+- `POST /api/playlist/track` endpoint
+- Queue icon on local (blue) track cards only
+- Success/error feedback via snackbar
+
+### In scope (Phase 4.2)
+- `POST /api/playlist/create` endpoint
+- "Build playlist from local songs" button in suggestions panel header, visible only when local tracks are present
+- Default playlist name `"Reco — {date}"`
+- Success/error feedback via snackbar
+
+### Out of scope
+- Controlling playback (play, pause, skip)
+- Managing existing playlists
+- Discovery (magenta) tracks in playlists — they have no local file path
+
+## 8.3 Recommended deliverables
+
+### Backend
+- `ClementineRemoteOptions` class (`Host`, `Port`)
+- `IClementineRemoteService` interface
+- `ClementineRemoteService` — TCP + protobuf implementation
+- `POST /api/playlist/track` — add single track
+- `POST /api/playlist/create` — create named playlist with multiple tracks
+- 503 response when Clementine is not running / Remote not enabled
+- Extend `ClementineService.LoadInventoryAsync` to read `filename`
+
+### Frontend
+- Queue icon on local track cards (`filePath` must be non-null)
+- "Build playlist from local songs" button in suggestions panel header
+- `MatSnackBar` confirmation for success and failure states
+- Button disabled / hidden when no local tracks are available
+
+## 8.4 Testable user stories
+
+**4.1:** "As a user, I can click a queue icon on a local track card and the track appears in Clementine's current playlist."
+
+**4.2:** "As a user, I can click 'Build playlist from local songs' and all local tracks from the current suggestion set are added to a new named playlist in Clementine."
+
+## 8.5 Manual test checklist
+
+**Phase 4.1**
+- Is the queue icon visible on local (blue) cards and absent on discovery (magenta) cards?
+- Does clicking the queue icon add the track to Clementine's current playlist?
+- Does the success snackbar appear after a successful add?
+- If Clementine is not running, does the error snackbar appear?
+- If Clementine Remote is disabled, is the error clearly communicated?
+
+**Phase 4.2**
+- Is the "Build playlist from local songs" button visible when at least one local track is present?
+- Is the button hidden or disabled when no local tracks are present?
+- Does clicking the button create a new playlist in Clementine containing all local suggestion tracks?
+- Does the success snackbar appear?
+- If Clementine is not running, does the error snackbar appear?
+
+## 8.6 Technical acceptance criteria
+
+- Clementine Remote is called over TCP using protobuf messages
+- `INSERT_URLS` is used for both add-to-current and create-playlist operations
+- File paths are sourced from the `filename` column of the Clementine DB copy
+- Connection refused produces a 503 — not an unhandled exception
+- The host and port are configurable via environment variables without code changes
+- Discovery tracks are never sent to Clementine (they have no local file path)
+
+## 8.7 Likely correction themes after Phase 4
+
+- File path format differences between Windows (`C:\music\...`) and Linux (`/home/...`)
+- Clementine Remote must be explicitly enabled in Clementine settings — needs clear documentation
+- Playlist name conflicts if Clementine already has a playlist with the same name
+- Socket timeout if Clementine is running but unresponsive
+
+## 8.8 Phase 4 exit criteria
+
+Phase 4.1 is complete when:
+- local track cards show a functional queue icon,
+- clicking it adds the track to Clementine's current playlist,
+- and Clementine-unavailable errors are handled safely.
+
+Phase 4.2 is complete when:
+- the "Build playlist from local songs" button creates a new Clementine playlist,
+- all local suggestion tracks appear in that playlist,
+- and failure states are handled safely.
+
+---
+
+## 9. Correction Loop Template for Every Phase
 
 Each phase should end with a structured correction cycle.
 
-## 8.1 Step 1 — Demo the phase
+## 9.1 Step 1 — Demo the phase
 
 Run the application and use it like a real user.
 Do not validate only through unit tests.
 
-## 8.2 Step 2 — Capture issues
+## 9.2 Step 2 — Capture issues
 
 Split findings into:
 - **functional bugs**
@@ -453,36 +577,36 @@ Split findings into:
 - **performance/stability issues**
 - **contract/shape issues**
 
-## 8.3 Step 3 — Triage
+## 9.3 Step 3 — Triage
 
 Classify issues as:
 - must-fix before next phase
 - should-fix soon
 - can wait
 
-## 8.4 Step 4 — Stabilization mini-sprint
+## 9.4 Step 4 — Stabilization mini-sprint
 
 Apply only the corrections needed to make the phase stable enough to build on.
 Avoid mixing in unrelated future work.
 
-## 8.5 Step 5 — Re-test phase exit criteria
+## 9.5 Step 5 — Re-test phase exit criteria
 
 Re-run the phase checklist and confirm the phase can now serve as a base for the next one.
 
 ---
 
-## 9. Suggested Backlog Structure
+## 10. Suggested Backlog Structure
 
 Maintain backlog items under these headings.
 
-## 9.1 Shared foundation
+## 10.1 Shared foundation
 - project setup
 - environment config
 - logging / diagnostics
 - UI shell
 - API shell
 
-## 9.2 Phase 1 backlog
+## 10.2 Phase 1 backlog
 - chat UI
 - chat endpoint
 - AI gateway
@@ -490,7 +614,7 @@ Maintain backlog items under these headings.
 - loading/error states
 - Phase 1 corrections
 
-## 9.3 Phase 2 backlog
+## 10.3 Phase 2 backlog
 - web suggestion panel
 - suggestion DTOs
 - retrieval orchestration
@@ -498,7 +622,7 @@ Maintain backlog items under these headings.
 - partial failure handling
 - Phase 2 corrections
 
-## 9.4 Phase 3 backlog
+## 10.4 Phase 3 backlog
 - Clementine adapter
 - local inventory loading
 - suggestion-to-local matching
@@ -506,9 +630,19 @@ Maintain backlog items under these headings.
 - degraded behavior when DB is unavailable
 - Phase 3 corrections
 
+## 10.5 Phase 4 backlog
+- Extend Clementine DB adapter to read `filename`
+- Add `FilePath` to `TrackSuggestion` / `LocalTrack`
+- Clementine Remote service (TCP / protobuf)
+- Add-to-playlist endpoint (4.1)
+- Build-playlist endpoint (4.2)
+- Queue icon on local track cards (4.1)
+- "Build playlist from local songs" button (4.2)
+- Phase 4 corrections
+
 ---
 
-## 10. Suggested Branch / Delivery Strategy
+## 11. Suggested Branch / Delivery Strategy
 
 A clean way to work is:
 
@@ -516,6 +650,7 @@ A clean way to work is:
 - `phase-1-chat`
 - `phase-2-web-suggestions`
 - `phase-3-clementine-filtering`
+- `phase-4-clementine-player`
 
 Within each phase branch, keep sub-work small and merge frequently.
 
@@ -526,7 +661,7 @@ At the end of each phase:
 
 ---
 
-## 11. Recommended Testing Strategy by Phase
+## 12. Recommended Testing Strategy by Phase
 
 ## Phase 1
 
@@ -567,9 +702,23 @@ At the end of each phase:
 - one end-to-end test: send prompt → suggestions panel shows only tracks owned locally
 - one failure-path test: DB copy missing or path misconfigured → safe, visible outcome with chat narrative intact
 
+## Phase 4
+
+### Focus
+- Clementine Remote TCP connection and protobuf message encoding
+- add-to-playlist and create-playlist operations
+- graceful handling of Clementine-not-running states
+- `filePath` propagation from DB copy through to API response
+
+### Minimum tests
+- unit tests for `ClementineRemoteService` (mock TCP connection or test double)
+- endpoint tests for `POST /api/playlist/track` and `POST /api/playlist/create`
+- one failure-path test: Clementine not running → 503 with safe message
+- frontend tests for queue icon visibility (local tracks only) and button state (hidden when no local tracks)
+
 ---
 
-## 12. Recommended Definition of Done Per Phase
+## 13. Recommended Definition of Done Per Phase
 
 A phase is done only when all of the following are true:
 
@@ -582,7 +731,7 @@ A phase is done only when all of the following are true:
 
 ---
 
-## 13. Suggested Roadmap Summary
+## 14. Suggested Roadmap Summary
 
 ## Phase 1
 **Deliverable:** Chat-only AI web app
@@ -593,6 +742,9 @@ A phase is done only when all of the following are true:
 ## Phase 3
 **Deliverable:** Chat + web suggestions filtered/grounded to local Clementine collection
 
+## Phase 4
+**Deliverable:** One-click player control — add tracks to Clementine playlist or build a new playlist from local suggestions
+
 ## Correction model
 After each phase:
 - review,
@@ -602,7 +754,7 @@ After each phase:
 
 ---
 
-## 14. Executive Summary
+## 15. Executive Summary
 
 Yes — this project should absolutely be developed in phased increments so you can test it as it evolves.
 
@@ -611,6 +763,7 @@ The cleanest plan is:
 1. **Phase 1:** basic chat with the AI
 2. **Phase 2:** add web-based structured suggestions above the chat
 3. **Phase 3:** use the Clementine database to restrict or ground results to your local music
+4. **Phase 4:** control the Clementine player directly — add a track or build a playlist from suggestions
 
 The most important rule is not just the phases themselves, but the **correction loop after every phase**.
 

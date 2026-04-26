@@ -18,11 +18,11 @@ This document is aligned to the following design mode:
 
 The target behavior is a system that:
 
-1. interprets an abstract music request using a local AI layer,
-2. retrieves relevant outside-world music evidence,
-3. grounds that evidence against the user's Clementine-backed local library,
-4. ranks only locally-owned candidates,
-5. and explains the result conversationally.
+1. sends a music request to an LLM (Gemini or local Ollama),
+2. receives a conversational narrative and a structured track list in a single response,
+3. annotates each track against the user's Clementine-backed local library (fuzzy matching),
+4. returns all tracks tagged with `inLocalLibrary` — owned tracks (blue) and discovery tracks (magenta),
+5. and explains the result through the LLM's conversational narrative.
 
 ---
 
@@ -341,22 +341,9 @@ Required fields:
 - Keep the original provider-level evidence strength visible.
 - A packet may be partial or sparse and still valid.
 
-### 6.5 Typical packet contents
+### 6.5 Note on current architecture
 
-A Last.fm packet may emphasize:
-- top tags,
-- similar artists,
-- track similarity,
-- popularity-style discovery cues.
-
-A MusicBrainz packet may emphasize:
-- canonical artist / release / recording entities,
-- stronger structural identity information.
-
-A Discogs packet may emphasize:
-- release metadata,
-- genre/style labels,
-- artist and label relationships.
+External evidence packets from third-party providers are not used in the current implementation. The LLM (Gemini or Ollama) is the sole source of music knowledge. If a future version re-introduces external evidence retrieval, this section describes the expected packet structure.
 
 ---
 

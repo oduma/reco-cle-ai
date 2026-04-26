@@ -25,22 +25,17 @@ This document is intended to sit alongside:
 
 ## 2. Architectural Context
 
-The current architecture assumes:
+The current architecture:
 
-1. **Gemini 2.5 Pro** is used via the **Gemini Developer API free tier** for:
-   - intent interpretation,
-   - structured intent generation,
-   - explanation generation,
-   - and optionally limited AI-assisted summarization.
+1. Uses **Gemini** (cloud) or **Ollama** (local) as the LLM. Both return narrative + structured tracks in a single call.
 
-2. **External music evidence retrieval** is performed through dedicated provider adapters for:
-   - MusicBrainz,
-   - Last.fm,
-   - Discogs.
+2. Does **not** use external metadata providers (MusicBrainz, Last.fm, Discogs). No external provider evidence packets are fetched.
 
-3. **Local collection grounding** is performed against a **Clementine-backed local inventory**.
+3. Annotates tracks against the **Clementine-backed local inventory** using normalised fuzzy string matching.
 
-Because the system depends on multiple remote services with differing rate limits, availability profiles, and response characteristics, caching is not optional. It is a first-class architectural concern.
+4. Applies a **suggestion cache** (in-memory singleton, configurable duration) to avoid repeating the same local tracks within a session window.
+
+Because the LLM API (Gemini) has quota constraints and local inventory loading has a cost, caching is still a relevant architectural concern — but simpler than originally planned.
 
 ---
 
@@ -57,16 +52,9 @@ The Gemini Developer API free tier is useful for prototyping, but it has archite
 
 This means repeated unnecessary calls to Gemini should be avoided wherever possible.
 
-### 3.2 External Provider Constraints
+### 3.2 Ollama Inference Latency
 
-The retrieval layer depends on providers such as MusicBrainz, Last.fm, and Discogs, each of which can:
-
-- rate-limit requests,
-- return partial or inconsistent data,
-- vary in latency,
-- or occasionally be unavailable.
-
-Caching reduces provider churn and improves recommendation responsiveness.
+Local LLM inference on CPU (Ollama with `llama3.1:8b`) takes 60–120 seconds. Result caching for repeated or near-identical prompts is a future improvement that would improve responsiveness for the local provider path.
 
 ### 3.3 End-User Experience Constraints
 
@@ -224,22 +212,8 @@ This is one of the most important cache layers because provider requests are:
 - provider response-normalization version
 
 ### TTL recommendation
-Different providers should have different TTLs:
-
-#### MusicBrainz
-- **longer TTL**
-- canonical metadata is relatively stable
-- suggested TTL: 7–30 days
-
-#### Last.fm
-- **medium TTL**
-- tags/similarity can be treated as semi-stable
-- suggested TTL: 1–7 days
-
-#### Discogs
-- **medium to long TTL**
-- release/style metadata is relatively stable
-- suggested TTL: 7–30 days
+- **not currently applicable** — no external provider evidence packets are cached in the current architecture.
+- The current suggestion cache (`SuggestionCacheService`) is the only active cache for recommendation results, with a configurable TTL (default 60 minutes).
 
 ### Invalidation triggers
 - provider schema normalization changes
@@ -492,14 +466,10 @@ Recommended normalized dimensions include:
 - session interpretation variants
 
 ### Medium-lived (hours to days)
-- world candidate graphs
-- Last.fm evidence packets
 - intent profiles for common prompts
 
 ### Long-lived (days to weeks)
-- MusicBrainz evidence packets
-- Discogs evidence packets
-- normalized artist identity maps
+- normalized artist identity maps (future)
 
 ### Event-driven freshness
 - local inventory snapshots

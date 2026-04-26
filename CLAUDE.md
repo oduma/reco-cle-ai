@@ -12,6 +12,7 @@ The app is being built in phases:
 1. **Phase 1:** chat-only AI prototype
 2. **Phase 2:** chat + web suggestions above the chat
 3. **Phase 3:** chat + web suggestions filtered/grounded using the local Clementine library
+4. **Phase 4:** Clementine player control (add track to playlist; build playlist from suggestions)
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:
@@ -30,8 +31,7 @@ Use these locations as the primary sources of truth:
 - `docs/architecture/logical-component-architecture-personal-music-discovery-engine.md`
 - `docs/architecture/query-execution-sequence-diagram-personal-music-discovery-engine.md`
 - `docs/architecture/provider-failure-graceful-degradation-sequence-diagram-personal-music-discovery-engine.md`
-- `docs/architecture/musicbrainz-integration-requirements-and-architecture-implications.md`
-- `docs/architecture/discogs-integration-requirements-and-architecture-implications.md`
+- `docs/architecture/clementine-remote-integration-architecture.md`
 
 ### Contracts
 - `docs/contracts/stage-by-stage-data-contracts-personal-music-discovery-engine.md`
@@ -40,7 +40,7 @@ Use these locations as the primary sources of truth:
 - `docs/policies/ranking-policy-personal-music-discovery-engine.md`
 - `docs/policies/explanation-policy-personal-music-discovery-engine.md`
 - `docs/policies/provider-caching-and-persistence-model-personal-music-discovery-engine.md`
-- `docs/policies/secrets-and-environment-variable-strategy-third-party-providers.md`
+- `docs/architecture/secrets-and-environment-variable-strategy-third-party-providers.md`
 
 ### Governance
 - `docs/governance/agent-handover-matrix-personal-music-discovery-engine.md`
@@ -49,7 +49,7 @@ Use these locations as the primary sources of truth:
 - Build the system in **vertical slices**.
 - Prefer a feature that is runnable and testable end-to-end over disconnected frontend/backend work.
 - End each phase with a correction/stabilization loop before adding the next major capability.
-- Do not jump to Phase 3 features while Phase 1 or Phase 2 work is still incomplete unless explicitly asked.
+- Do not jump ahead to a later phase while earlier phase work is still incomplete unless explicitly asked.
 
 ## Stack Rules
 
@@ -73,7 +73,7 @@ Use these locations as the primary sources of truth:
 ## Provider Rules
 - All provider calls must happen on the **backend only**.
 - Never expose provider credentials to the frontend.
-- MusicBrainz, Last.fm, Discogs, Gemini, and Clementine access must all remain behind backend abstractions.
+- Gemini, Ollama, Clementine DB, and Clementine Remote access must all remain behind backend abstractions.
 - Normalize provider data into application-owned models before returning results.
 - Respect provider-specific rate limits and graceful degradation behavior.
 
@@ -85,24 +85,20 @@ Use these locations as the primary sources of truth:
 
 ## Current Known Environment Variables
 - `GEMINI_API_KEY`
-- `LAST_FM_API_KEY`
-- `LASTFM_API_SECRET`
-- `DISCOGS_USER_TOKEN`
 - `GEMINI_MODEL`
 - `GEMINI_BASE_URL`
-- `LASTFM_BASE_URL`
-- `DISCOGS_BASE_URL`
-- `DISCOGS_USER_AGENT`
-- `APP_PUBLIC_URL`
-- `APP_CONTACT_EMAIL`
-- `APP_VERSION`
+- `OLLAMA_BASE_URL`
+- `OLLAMA_MODEL`
 - `CLEMENTINE_DB_PATH`
 - `CLEMENTINE_MATCH_THRESHOLD`
+- `CLEMENTINE_REMOTE_HOST`
+- `CLEMENTINE_REMOTE_PORT`
 - `RECOMMENDATION_MIN_TRACKS`
 - `RECOMMENDATION_MAX_TRACKS`
 - `RECOMMENDATION_SUGGESTION_CACHE_MINUTES`
-- `OLLAMA_BASE_URL`
-- `OLLAMA_MODEL`
+- `APP_PUBLIC_URL`
+- `APP_CONTACT_EMAIL`
+- `APP_VERSION`
 
 ## Build / Test Expectations
 When making changes, always consider:

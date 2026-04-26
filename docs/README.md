@@ -18,9 +18,8 @@ If you are new to the repository, read in this order:
 8. `policies/ranking-policy-personal-music-discovery-engine.md`
 9. `policies/explanation-policy-personal-music-discovery-engine.md`
 10. `policies/provider-caching-and-persistence-model-personal-music-discovery-engine.md`
-11. `architecture/musicbrainz-integration-requirements-and-architecture-implications.md`
-12. `architecture/discogs-integration-requirements-and-architecture-implications.md`
-13. `governance/agent-handover-matrix-personal-music-discovery-engine.md`
+11. `architecture/clementine-remote-integration-architecture.md`
+12. `governance/agent-handover-matrix-personal-music-discovery-engine.md`
 
 ## Folder Purpose
 
@@ -54,9 +53,8 @@ Expected documents:
 - logical component architecture
 - query execution sequence diagram
 - provider failure / graceful degradation sequence diagram
-- MusicBrainz integration requirements and architectural implications
-- Discogs integration requirements and architectural implications
-- secrets and environment variable strategy for third-party providers
+- Clementine Remote integration architecture
+- secrets and environment variable strategy
 
 ### `contracts/`
 Data-flow and interface-oriented design docs.
@@ -108,9 +106,8 @@ Expected documents:
 - `architecture/query-execution-sequence-diagram-personal-music-discovery-engine.md`
 - `architecture/provider-failure-graceful-degradation-sequence-diagram-personal-music-discovery-engine.md`
 
-### Provider integration requirements
-- `architecture/musicbrainz-integration-requirements-and-architecture-implications.md`
-- `architecture/discogs-integration-requirements-and-architecture-implications.md`
+### Player integration requirements
+- `architecture/clementine-remote-integration-architecture.md`
 
 ### Secrets and configuration
 - `architecture/secrets-and-environment-variable-strategy-third-party-providers.md`

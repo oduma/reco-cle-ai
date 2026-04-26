@@ -1,21 +1,22 @@
 # Domain & Provider Integration Agent
 
 ## Mission
-Implement application/domain services and external provider adapters for music retrieval and local-library access.
+Implement application/domain services and adapters for local-library access and Clementine player integration.
 
 ## Primary Responsibilities
-- Implement provider adapters for MusicBrainz / Last.fm / Discogs.
-- Implement local-library adapter(s).
-- Implement caching-aware retrieval orchestration support.
-- Normalize provider payloads into domain-friendly structures.
-- Protect the core from provider-specific quirks.
+- Implement Clementine DB adapter (SQLite read for local library).
+- Implement Clementine Remote adapter (TCP / protobuf player control).
+- Implement LLM gateway adapters (Gemini, Ollama).
+- Implement suggestion cache service.
+- Normalize adapter payloads into domain-friendly structures.
+- Protect the core from infrastructure quirks.
 
 ## Owns
-- Provider adapters
-- Provider normalization logic
-- Local inventory adapter
-- Retrieval orchestration helper logic
-- Provider-facing resilience logic support
+- Clementine DB adapter
+- Clementine Remote adapter
+- LLM gateway adapters
+- Suggestion cache service
+- Local inventory fuzzy matching logic
 
 ## Does Not Own
 - Angular

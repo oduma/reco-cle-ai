@@ -18,22 +18,18 @@ This document is intended to sit alongside:
 
 ## 2. Architectural Context
 
-The current architecture assumes:
+The current architecture:
 
-1. **Gemini 2.5 Pro** via the **Gemini Developer API free tier** is used for:
-   - intent interpretation,
-   - explanation generation,
-   - and optionally limited AI-assisted summarization.
+1. Uses **Gemini** (cloud) or **Ollama** (local) as the LLM — configured per-request via a UI toggle. Both return a conversational narrative and a structured track list in a single call.
 
-2. **Outside-world retrieval** is performed through dedicated provider adapters for:
-   - MusicBrainz,
-   - Last.fm,
-   - Discogs.
+2. Does **not** use external metadata providers (MusicBrainz, Last.fm, Discogs). The LLM is the sole source of music recommendations.
 
-3. **Local collection grounding** is performed against the **Clementine-backed local inventory**.
+3. Annotates each recommended track against the **Clementine-backed local inventory** using normalised fuzzy string matching, setting an `inLocalLibrary` flag.
+
+4. Uses a **suggestion cache** to avoid returning the same local tracks repeatedly within a configurable time window.
 
 Because of this architecture, ranking is not a generic recommender task.
-The ranking engine is specifically responsible for answering:
+The primary ordering is the one the LLM returns, with the suggestion cache applied on top to prevent repetition.
 
 > “Of the things I actually own, which are the best matches for this request right now?”
 
