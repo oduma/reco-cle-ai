@@ -1018,6 +1018,32 @@ Fix awkward degraded states discovered during Phase 3 testing.
 
 ---
 
+## P3C-005 — Cache recently suggested tracks to avoid repetition
+
+### Goal
+Add a server-side in-memory cache that tracks which local suggestions have already been returned to the user. Within a configurable time window (default 1 hour), exclude previously suggested tracks from new responses.
+
+Override rule: if excluding cached tracks would leave an empty result but the local library filter matched tracks, ignore the cache for that request and return the matched set anyway.
+
+Configuration:
+- `SuggestionCacheDurationMinutes` in `appsettings.json` Recommendation section (default: `60`)
+- `RECOMMENDATION_SUGGESTION_CACHE_MINUTES` environment variable override
+
+### Suggested owner / agent
+- Domain & Provider Integration Agent
+- .NET API Agent
+
+### Dependencies
+- P3-008
+
+### Definition of done
+- Previously suggested tracks are not returned again within the cache window
+- Override fires correctly when all local matches are cached (returns full matched set instead of empty)
+- Cache duration is read from configuration, not hardcoded
+- Cache is cleared of expired entries lazily on each write
+
+---
+
 ## P3C-004 — Phase 3 stabilization sign-off
 
 ### Goal

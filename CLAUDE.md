@@ -96,6 +96,11 @@ Use these locations as the primary sources of truth:
 - `APP_PUBLIC_URL`
 - `APP_CONTACT_EMAIL`
 - `APP_VERSION`
+- `CLEMENTINE_DB_PATH`
+- `CLEMENTINE_MATCH_THRESHOLD`
+- `RECOMMENDATION_MIN_TRACKS`
+- `RECOMMENDATION_MAX_TRACKS`
+- `RECOMMENDATION_SUGGESTION_CACHE_MINUTES`
 
 ## Build / Test Expectations
 When making changes, always consider:

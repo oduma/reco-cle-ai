@@ -6,4 +6,5 @@ public class RecommendationOptions
 
     public int MinTracks { get; set; } = 10;
     public int MaxTracks { get; set; } = 20;
+    public int SuggestionCacheDurationMinutes { get; set; } = 60;
 }

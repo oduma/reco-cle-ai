@@ -26,6 +26,9 @@ builder.Services.Configure<RecommendationOptions>(options =>
 
     if (int.TryParse(builder.Configuration["RECOMMENDATION_MAX_TRACKS"], out var max) && max > 0)
         options.MaxTracks = max;
+
+    if (int.TryParse(builder.Configuration["RECOMMENDATION_SUGGESTION_CACHE_MINUTES"], out var cacheMins) && cacheMins >= 0)
+        options.SuggestionCacheDurationMinutes = cacheMins;
 });
 
 builder.Services.Configure<ClementineOptions>(options =>
@@ -41,6 +44,7 @@ builder.Services.Configure<ClementineOptions>(options =>
 
 builder.Services.AddHttpClient<IGeminiGatewayService, GeminiGatewayService>();
 builder.Services.AddSingleton<IClementineService, ClementineService>();
+builder.Services.AddSingleton<ISuggestionCacheService, SuggestionCacheService>();
 builder.Services.AddScoped<IRecommendationOrchestrationService, RecommendationOrchestrationService>();
 
 builder.Services.AddControllers();

@@ -9,11 +9,12 @@
 # Then restart this terminal and run start.ps1 again.
 
 # ── Optional overrides (defaults shown, uncomment to change) ─────────────────
-# $env:GEMINI_MODEL               = "gemini-2.5-pro"
-# $env:CLEMENTINE_DB_PATH         = "C:\Code\clementine.db"
-# $env:CLEMENTINE_MATCH_THRESHOLD = "0.75"
-# $env:RECOMMENDATION_MIN_TRACKS  = "10"
-# $env:RECOMMENDATION_MAX_TRACKS  = "20"
+# $env:GEMINI_MODEL                             = "gemini-2.5-pro"
+# $env:CLEMENTINE_DB_PATH                       = "C:\Code\clementine.db"
+# $env:CLEMENTINE_MATCH_THRESHOLD               = "0.75"
+# $env:RECOMMENDATION_MIN_TRACKS                = "10"
+# $env:RECOMMENDATION_MAX_TRACKS                = "20"
+# $env:RECOMMENDATION_SUGGESTION_CACHE_MINUTES  = "60"
 
 # ── Runtime config ────────────────────────────────────────────────────────────
 $env:ASPNETCORE_ENVIRONMENT = "Production"

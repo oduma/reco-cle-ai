@@ -8,17 +8,20 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
 {
     private readonly IGeminiGatewayService _gemini;
     private readonly IClementineService _clementine;
+    private readonly ISuggestionCacheService _suggestionCache;
     private readonly ClementineOptions _clementineOptions;
     private readonly ILogger<RecommendationOrchestrationService> _logger;
 
     public RecommendationOrchestrationService(
         IGeminiGatewayService gemini,
         IClementineService clementine,
+        ISuggestionCacheService suggestionCache,
         IOptions<ClementineOptions> clementineOptions,
         ILogger<RecommendationOrchestrationService> logger)
     {
         _gemini = gemini;
         _clementine = clementine;
+        _suggestionCache = suggestionCache;
         _clementineOptions = clementineOptions.Value;
         _logger = logger;
     }
@@ -39,13 +42,25 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             .Append(new ConversationTurn("model", result.Narrative))
             .ToList();
 
-        var (filteredTracks, message) = await FilterAgainstLocalLibraryAsync(result.Tracks, cancellationToken);
+        var (matchedTracks, message) = await FilterAgainstLocalLibraryAsync(result.Tracks, cancellationToken);
+
+        var freshTracks = _suggestionCache.ExcludeRecentlySuggested(matchedTracks);
+
+        // Override cache exclusion when all local matches have been recently suggested
+        var tracksToReturn = (freshTracks.Count == 0 && matchedTracks.Count > 0)
+            ? matchedTracks
+            : freshTracks;
 
         _logger.LogInformation(
-            "[Recommendations] Gemini returned {Total} tracks, {Matched} matched local library",
-            result.Tracks.Count, filteredTracks.Count);
+            "[Recommendations] Gemini: {Total} | local match: {Matched} | after cache: {Fresh}{Override}",
+            result.Tracks.Count,
+            matchedTracks.Count,
+            freshTracks.Count,
+            freshTracks.Count == 0 && matchedTracks.Count > 0 ? " (cache overridden — all matches already suggested)" : string.Empty);
 
-        return new RecommendationResponse(result.Narrative, filteredTracks, updatedHistory, message);
+        _suggestionCache.MarkAsSuggested(tracksToReturn);
+
+        return new RecommendationResponse(result.Narrative, tracksToReturn, updatedHistory, message);
     }
 
     private async Task<(IReadOnlyList<TrackSuggestion> Tracks, string? Message)> FilterAgainstLocalLibraryAsync(
