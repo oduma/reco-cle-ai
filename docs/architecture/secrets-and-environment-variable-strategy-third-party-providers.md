@@ -71,13 +71,7 @@ CLEMENTINE_DB_PATH
 CLEMENTINE_MATCH_THRESHOLD
 ```
 
-## 4.4 Clementine Remote (Phase 4)
-```text
-CLEMENTINE_REMOTE_HOST
-CLEMENTINE_REMOTE_PORT
-```
-
-## 4.5 Recommendation behavior
+## 4.4 Recommendation behavior
 ```text
 RECOMMENDATION_MIN_TRACKS
 RECOMMENDATION_MAX_TRACKS
@@ -129,8 +123,6 @@ OLLAMA_MODEL=
 # Clementine
 CLEMENTINE_DB_PATH=
 CLEMENTINE_MATCH_THRESHOLD=
-CLEMENTINE_REMOTE_HOST=
-CLEMENTINE_REMOTE_PORT=
 
 # Recommendation tuning
 RECOMMENDATION_MIN_TRACKS=
@@ -165,10 +157,6 @@ The backend maps environment variables into strongly-typed options classes.
 ### ClementineOptions
 - DbPath
 - MatchThreshold
-
-### ClementineRemoteOptions
-- Host
-- Port
 
 ### RecommendationOptions
 - MinTracks

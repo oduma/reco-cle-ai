@@ -117,7 +117,11 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             var threshold = _clementineOptions.MatchThreshold;
 
             var annotated = suggestions
-                .Select(s => s with { InLocalLibrary = inventory.Any(local => TrackMatcher.IsMatch(s, local, threshold)) })
+                .Select(s =>
+                {
+                    var match = inventory.FirstOrDefault(local => TrackMatcher.IsMatch(s, local, threshold));
+                    return s with { InLocalLibrary = match is not null, FilePath = match?.FilePath };
+                })
                 .ToList();
 
             return (annotated, null);

@@ -51,6 +51,26 @@
   flex: 1;
 }
 
+.add-all-btn {
+  font-size: 0.75rem;
+  height: 28px;
+  line-height: 28px;
+  padding: 0 10px;
+  color: #00C8FF;
+  border-color: #00C8FF;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+  }
+
+  &[disabled] {
+    opacity: 0.4;
+  }
+}
+
 .panel-state {
   display: flex;
   align-items: center;

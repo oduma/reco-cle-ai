@@ -26,5 +26,22 @@
         </svg>
       </a>
     }
+    @if (suggestion().inLocalLibrary) {
+      <button
+        mat-icon-button
+        class="add-btn"
+        (click)="addToClementine(); $event.stopPropagation()"
+        [disabled]="addingToPlaylist()"
+        [attr.aria-label]="'Add ' + suggestion().artist + ' – ' + suggestion().title + ' to Clementine playlist'">
+        <mat-icon>queue_music</mat-icon>
+      </button>
+      <button
+        mat-icon-button
+        class="copy-btn"
+        (click)="copyToClipboard(); $event.stopPropagation()"
+        [attr.aria-label]="'Copy ' + suggestion().artist + ' – ' + suggestion().title + ' to clipboard'">
+        <mat-icon>content_copy</mat-icon>
+      </button>
+    }
   </mat-card-content>
 </mat-card>

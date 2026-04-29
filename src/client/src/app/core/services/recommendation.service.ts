@@ -12,6 +12,7 @@ export interface TrackSuggestion {
   artist: string;
   album: string | null;
   inLocalLibrary: boolean;
+  filePath?: string;
 }
 
 export interface RecommendationRequest {

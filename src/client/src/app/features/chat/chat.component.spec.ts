@@ -14,16 +14,20 @@ const RECO_OK: RecommendationResponse = {
     { role: 'model', text: 'Try Miles Davis.' },
   ],
   message: null,
+  providerUsed: 'gemini',
+  usedFallback: false,
 };
 
 const RECO_WITH_TRACKS: RecommendationResponse = {
   narrative: 'Try Blue in Green by Miles Davis.',
-  suggestions: [{ title: 'Blue in Green', artist: 'Miles Davis', album: 'Kind of Blue' }],
+  suggestions: [{ title: 'Blue in Green', artist: 'Miles Davis', album: 'Kind of Blue', inLocalLibrary: false }],
   history: [
     { role: 'user', text: 'jazz' },
     { role: 'model', text: 'Try Blue in Green by Miles Davis.' },
   ],
   message: null,
+  providerUsed: 'gemini',
+  usedFallback: false,
 };
 
 describe('ChatComponent', () => {

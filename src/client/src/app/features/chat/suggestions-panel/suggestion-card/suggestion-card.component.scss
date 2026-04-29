@@ -85,3 +85,29 @@
   width: 18px;
   height: 18px;
 }
+
+.add-btn,
+.copy-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  margin-top: -2px;
+  opacity: 0.75;
+  color: #00C8FF;
+  transition: opacity 0.15s;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &[disabled] {
+    opacity: 0.3;
+  }
+
+  .mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}

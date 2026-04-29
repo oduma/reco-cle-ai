@@ -16,7 +16,7 @@ This version reflects the following implementation:
 
 - the system uses **Gemini** (cloud) or **Ollama** (local LLM) for recommendation narrative and structured track list generation — no external music metadata providers (MusicBrainz, Last.fm, Discogs) are used,
 - the user's local music inventory is grounded via the **Clementine SQLite-backed library** using normalised fuzzy string matching,
-- and Phase 4 adds direct **Clementine Remote** player control via TCP/protobuf.
+- and Phase 4 adds a **copy-to-clipboard** action on local track cards.
 
 > **Note:** Some sections of this document describe components planned for a more complex future architecture (retrieval orchestrator, world candidate graph, ranking engine, etc.). These have not been implemented. The current implementation is the Recommendation Orchestration Service described in the query execution sequence diagram.
 
@@ -56,10 +56,6 @@ The active LLM returns a conversational narrative and a structured track list in
 
 The user's locally-owned collection is retrieved from the **Clementine SQLite database copy** at the path configured by `CLEMENTINE_DB_PATH`. The copy is read-only and does not affect the running player.
 
-### 3.4 Clementine Remote Layer (Phase 4)
-
-Direct player control uses the **Clementine Remote TCP/protobuf protocol** on port 5501 (configurable). This enables adding tracks to the current playlist or creating a new named playlist.
-
 ---
 
 ## 4. Architecture Style
@@ -93,8 +89,6 @@ Clementine DB Adapter (local inventory fuzzy matching)
 Suggestion Cache Service
     ↓
 API Response (narrative + annotated tracks)
-    ↓
-[Phase 4] Clementine Remote Adapter (player control)
 ```
 
 Supporting all of the above:
@@ -658,7 +652,6 @@ For V1, the most practical implementation boundaries are:
 4. Clementine DB Adapter (ClementineService)
 5. Suggestion Cache Service
 6. Recommendations API endpoint
-7. [Phase 4] Clementine Remote Service
 
 ### Components that can stay simple in V1
 - Clarification Decision Service
@@ -739,10 +732,10 @@ The logical architecture for the Personal Music Discovery Engine is built around
 
 1. **LLM-based recommendation** using **Gemini** (cloud) or **Ollama** (local) — the LLM is both the recommender and the narrative explainer in a single call,
 2. **local library annotation** using the **Clementine-backed SQLite copy** with normalised fuzzy string matching,
-3. **Phase 4 player control** using the **Clementine Remote TCP/protobuf protocol**.
+3. **Phase 4 copy-to-clipboard** — one-click copy of artist + title from local track cards.
 
 No external music metadata providers (MusicBrainz, Last.fm, Discogs) are used. Local music files do not carry provider-assigned identifiers, so direct fuzzy matching against the Clementine DB is both simpler and more effective.
 
 The result is a modular, testable architecture that preserves the core product promise:
 
-> ask about music in natural language → see what you own (blue) and what you could discover (magenta) → add the best local tracks to Clementine with one click.
+> ask about music in natural language → see what you own (blue) and what you could discover (magenta) → copy the best local tracks to clipboard with one click.

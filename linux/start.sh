@@ -39,6 +39,8 @@ export ASPNETCORE_URLS="http://localhost:12500"
 # export RECOMMENDATION_SUGGESTION_CACHE_MINUTES="60"
 # export OLLAMA_BASE_URL="http://localhost:11434"
 # export OLLAMA_MODEL="llama3.1:8b"
+# export CLEMENTINE_REMOTE_HOST="localhost"
+# export CLEMENTINE_REMOTE_PORT="5500"
 
 # Make binary executable (safe to run multiple times)
 chmod +x "$SCRIPT_DIR/Reco.Api"

@@ -1,13 +1,25 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideZonelessChangeDetection } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { SuggestionsPanelComponent } from './suggestions-panel.component';
 import { TrackSuggestion } from '../../../core/services/recommendation.service';
 
 const SAMPLE_TRACKS: TrackSuggestion[] = [
-  { title: 'Blue in Green', artist: 'Miles Davis', album: 'Kind of Blue' },
-  { title: 'A Love Supreme', artist: 'John Coltrane', album: null },
+  { title: 'Blue in Green', artist: 'Miles Davis', album: 'Kind of Blue', inLocalLibrary: false },
+  { title: 'A Love Supreme', artist: 'John Coltrane', album: null, inLocalLibrary: false },
 ];
+
+const LOCAL_TRACK: TrackSuggestion = {
+  title: 'Kind of Blue', artist: 'Miles Davis', album: null,
+  inLocalLibrary: true, filePath: '/music/kind-of-blue.flac',
+};
+
+const LOCAL_TRACK_2: TrackSuggestion = {
+  title: 'A Love Supreme', artist: 'John Coltrane', album: null,
+  inLocalLibrary: true, filePath: '/music/a-love-supreme.flac',
+};
 
 describe('SuggestionsPanelComponent', () => {
   let fixture: ComponentFixture<SuggestionsPanelComponent>;
@@ -20,7 +32,12 @@ describe('SuggestionsPanelComponent', () => {
   }> = {}) {
     await TestBed.configureTestingModule({
       imports: [SuggestionsPanelComponent],
-      providers: [provideZonelessChangeDetection(), provideAnimationsAsync()],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(SuggestionsPanelComponent);
@@ -69,5 +86,55 @@ describe('SuggestionsPanelComponent', () => {
     await setup({ suggestions: [SAMPLE_TRACKS[1]] });
     const el: HTMLElement = fixture.nativeElement;
     expect(el.querySelector('.track-album')).toBeNull();
+  });
+
+  it('shows copy button for local tracks', async () => {
+    await setup({ suggestions: [LOCAL_TRACK] });
+    const el: HTMLElement = fixture.nativeElement;
+    const btn = el.querySelector('.copy-btn');
+    expect(btn).toBeTruthy();
+    expect(btn?.getAttribute('aria-label')).toContain('Miles Davis');
+  });
+
+  it('does not show copy button for discovery tracks', async () => {
+    await setup({ suggestions: [SAMPLE_TRACKS[0]] });
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.copy-btn')).toBeNull();
+  });
+
+  it('shows add-to-clementine button for local tracks', async () => {
+    await setup({ suggestions: [LOCAL_TRACK] });
+    const el: HTMLElement = fixture.nativeElement;
+    const btn = el.querySelector('.add-btn');
+    expect(btn).toBeTruthy();
+    expect(btn?.getAttribute('aria-label')).toContain('Miles Davis');
+  });
+
+  it('does not show add-to-clementine button for discovery tracks', async () => {
+    await setup({ suggestions: [SAMPLE_TRACKS[0]] });
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.add-btn')).toBeNull();
+  });
+
+  it('shows add-all button when local tracks with file paths are present', async () => {
+    await setup({ suggestions: [LOCAL_TRACK, SAMPLE_TRACKS[0]] });
+    const el: HTMLElement = fixture.nativeElement;
+    const btn = el.querySelector('.add-all-btn');
+    expect(btn).toBeTruthy();
+    expect(btn?.textContent).toContain('1');
+  });
+
+  it('shows correct count on add-all button when multiple local tracks present', async () => {
+    await setup({ suggestions: [LOCAL_TRACK, LOCAL_TRACK_2] });
+    const el: HTMLElement = fixture.nativeElement;
+    const btn = el.querySelector('.add-all-btn');
+    expect(btn).toBeTruthy();
+    expect(btn?.textContent).toContain('2');
+  });
+
+  it('does not show add-all button when there are no local tracks', async () => {
+    await setup({ suggestions: SAMPLE_TRACKS });
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.add-all-btn')).toBeNull();
   });
 });

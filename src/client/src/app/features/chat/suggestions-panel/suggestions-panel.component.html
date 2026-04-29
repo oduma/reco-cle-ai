@@ -10,6 +10,17 @@
         <span></span>
       </div>
     }
+    @if (localFilePaths().length > 0) {
+      <button
+        mat-stroked-button
+        class="add-all-btn"
+        (click)="addAllToClementine()"
+        [disabled]="addingAll()"
+        [attr.aria-label]="'Add all ' + localFilePaths().length + ' local tracks to Clementine playlist'">
+        <mat-icon>playlist_add</mat-icon>
+        Add {{ localFilePaths().length }} to Clementine
+      </button>
+    }
   </div>
 
   @if (loading() && suggestions().length === 0) {

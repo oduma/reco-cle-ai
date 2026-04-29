@@ -6,5 +6,6 @@ public record LocalTrack(
     string? Album,
     string NormalizedTitle,
     string NormalizedArtist,
-    string? NormalizedAlbum
+    string? NormalizedAlbum,
+    string? FilePath
 );

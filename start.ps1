@@ -17,6 +17,8 @@
 # $env:RECOMMENDATION_SUGGESTION_CACHE_MINUTES  = "60"
 # $env:OLLAMA_BASE_URL                          = "http://localhost:11434"
 # $env:OLLAMA_MODEL                             = "llama3.1:8b"
+# $env:CLEMENTINE_REMOTE_HOST                   = "localhost"
+# $env:CLEMENTINE_REMOTE_PORT                   = "5500"
 
 # ── Runtime config ────────────────────────────────────────────────────────────
 $env:ASPNETCORE_ENVIRONMENT = "Production"

@@ -12,7 +12,7 @@ The app is being built in phases:
 1. **Phase 1:** chat-only AI prototype
 2. **Phase 2:** chat + web suggestions above the chat
 3. **Phase 3:** chat + web suggestions filtered/grounded using the local Clementine library
-4. **Phase 4:** Clementine player control (add track to playlist; build playlist from suggestions)
+4. **Phase 4:** local track actions — copy artist+title to clipboard, and add track(s) to Clementine playlist via `clementine -a <path>` CLI (cross-platform)
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:
@@ -31,7 +31,6 @@ Use these locations as the primary sources of truth:
 - `docs/architecture/logical-component-architecture-personal-music-discovery-engine.md`
 - `docs/architecture/query-execution-sequence-diagram-personal-music-discovery-engine.md`
 - `docs/architecture/provider-failure-graceful-degradation-sequence-diagram-personal-music-discovery-engine.md`
-- `docs/architecture/clementine-remote-integration-architecture.md`
 
 ### Contracts
 - `docs/contracts/stage-by-stage-data-contracts-personal-music-discovery-engine.md`
@@ -73,7 +72,7 @@ Use these locations as the primary sources of truth:
 ## Provider Rules
 - All provider calls must happen on the **backend only**.
 - Never expose provider credentials to the frontend.
-- Gemini, Ollama, Clementine DB, and Clementine Remote access must all remain behind backend abstractions.
+- Gemini, Ollama, and Clementine DB access must all remain behind backend abstractions.
 - Normalize provider data into application-owned models before returning results.
 - Respect provider-specific rate limits and graceful degradation behavior.
 
@@ -91,11 +90,10 @@ Use these locations as the primary sources of truth:
 - `OLLAMA_MODEL`
 - `CLEMENTINE_DB_PATH`
 - `CLEMENTINE_MATCH_THRESHOLD`
-- `CLEMENTINE_REMOTE_HOST`
-- `CLEMENTINE_REMOTE_PORT`
 - `RECOMMENDATION_MIN_TRACKS`
 - `RECOMMENDATION_MAX_TRACKS`
 - `RECOMMENDATION_SUGGESTION_CACHE_MINUTES`
+- `CLEMENTINE_EXE_PATH` — path to Clementine executable (default: `C:\Program Files (x86)\Clementine\clementine.exe` on Windows, `clementine` on Linux)
 - `APP_PUBLIC_URL`
 - `APP_CONTACT_EMAIL`
 - `APP_VERSION`

@@ -8,6 +8,8 @@ const EMPTY_RESPONSE: RecommendationResponse = {
   suggestions: [],
   history: [],
   message: null,
+  providerUsed: 'gemini',
+  usedFallback: false,
 };
 
 describe('RecommendationService', () => {
@@ -39,13 +41,15 @@ describe('RecommendationService', () => {
     const mockResponse: RecommendationResponse = {
       narrative: 'Try Blue in Green by Miles Davis.',
       suggestions: [
-        { title: 'Blue in Green', artist: 'Miles Davis', album: 'Kind of Blue' },
+        { title: 'Blue in Green', artist: 'Miles Davis', album: 'Kind of Blue', inLocalLibrary: false },
       ],
       history: [
         { role: 'user', text: 'jazz?' },
         { role: 'model', text: 'Try Blue in Green by Miles Davis.' },
       ],
       message: null,
+      providerUsed: 'gemini',
+      usedFallback: false,
     };
 
     let result: RecommendationResponse | undefined;

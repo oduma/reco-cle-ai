@@ -93,22 +93,13 @@ This is the point where the product becomes meaningfully personal.
 
 ---
 
-## Phase 4 — Clementine Player Control
+## Phase 4 — Copy to Clipboard
 
 ### Goal
-Allow the user to interact with the running Clementine player directly from the web app.
-
-Phase 4 has two sub-phases:
-
-**Phase 4.1 — Add a single track to the current Clementine playlist**
-A small queue icon on each local (blue) track card lets the user add that track to Clementine's current playlist with one click.
-
-**Phase 4.2 — Build a playlist from all local suggestions**
-A “Build playlist from local songs” button in the suggestions panel header creates a new named Clementine playlist containing all local tracks from the current suggestion set.
+Add a copy-to-clipboard icon on each local (blue) track card. Clicking it copies `Artist – Title` to the system clipboard using the browser Clipboard API.
 
 ### Main user value
-The app moves from a read-only discovery tool to an active player control surface.
-You can hear the music Gemini recommended without leaving the app.
+With one click the user has the track name ready to search for, paste into Clementine's search box, or use anywhere else. No network calls or external dependencies required.
 
 ---
 
@@ -452,110 +443,59 @@ Phase 3 is complete when:
 
 ---
 
-## 8. Phase 4 — Clementine Player Control
+## 8. Phase 4 — Copy to Clipboard
 
 ## 8.1 Objective
 
-Add direct control of the running Clementine music player from the web app using the **Clementine Remote TCP/protobuf protocol** (port 5501 by default).
+Add a copy-to-clipboard icon on each local (blue) track card. Clicking it copies `Artist – Title` to the system clipboard using the browser Clipboard API.
 
-This phase is split into two sub-phases:
-
-**Phase 4.1:** queue a single track into Clementine's current playlist by clicking a queue icon on a local suggestion card.
-
-**Phase 4.2:** build a new named Clementine playlist from all locally matched tracks in the current suggestion set by clicking a "Build playlist from local songs" button.
-
-### Prerequisite
-
-Before 4.1 or 4.2 can work, the Clementine DB adapter must also read the `filename` column from the `songs` table. This file path is required by the Clementine Remote `INSERT_URLS` message. It flows through the stack as `TrackSuggestion.FilePath`.
+This is a purely frontend change — no new backend endpoints, no network calls, no external dependencies.
 
 ## 8.2 Scope
 
-### In scope (Phase 4.1)
-- Extend Clementine DB adapter to read `filename` from `songs`
-- Add `FilePath: string?` to `LocalTrack`, `TrackSuggestion` (backend + frontend)
-- `IClementineRemoteService` / `ClementineRemoteService` — TCP protobuf client
-- `ClementineRemoteOptions` — `Host` (default `localhost`) and `Port` (default `5501`)
-- `POST /api/playlist/track` endpoint
-- Queue icon on local (blue) track cards only
-- Success/error feedback via snackbar
-
-### In scope (Phase 4.2)
-- `POST /api/playlist/create` endpoint
-- "Build playlist from local songs" button in suggestions panel header, visible only when local tracks are present
-- Default playlist name `"Reco — {date}"`
-- Success/error feedback via snackbar
+### In scope
+- Copy icon on local (blue) track cards only
+- Browser Clipboard API (`navigator.clipboard.writeText`)
+- `MatSnackBar` confirmation: "Copied to clipboard"
+- Error snackbar if clipboard access is denied
 
 ### Out of scope
-- Controlling playback (play, pause, skip)
-- Managing existing playlists
-- Discovery (magenta) tracks in playlists — they have no local file path
+- Discovery (magenta) tracks — copy icon not shown
+- Any backend changes
+- Any Clementine player communication
 
 ## 8.3 Recommended deliverables
 
-### Backend
-- `ClementineRemoteOptions` class (`Host`, `Port`)
-- `IClementineRemoteService` interface
-- `ClementineRemoteService` — TCP + protobuf implementation
-- `POST /api/playlist/track` — add single track
-- `POST /api/playlist/create` — create named playlist with multiple tracks
-- 503 response when Clementine is not running / Remote not enabled
-- Extend `ClementineService.LoadInventoryAsync` to read `filename`
+### Frontend only
+- Copy icon (`content_copy`) on local track cards
+- `copyToClipboard()` method using `navigator.clipboard.writeText`
+- Success snackbar: `"Copied: Artist – Title"`
+- Error snackbar if clipboard write fails
 
-### Frontend
-- Queue icon on local track cards (`filePath` must be non-null)
-- "Build playlist from local songs" button in suggestions panel header
-- `MatSnackBar` confirmation for success and failure states
-- Button disabled / hidden when no local tracks are available
+## 8.4 Testable user story
 
-## 8.4 Testable user stories
-
-**4.1:** "As a user, I can click a queue icon on a local track card and the track appears in Clementine's current playlist."
-
-**4.2:** "As a user, I can click 'Build playlist from local songs' and all local tracks from the current suggestion set are added to a new named playlist in Clementine."
+> "As a user, I can click the copy icon on a local track card and the artist and title are on my clipboard, ready to paste anywhere."
 
 ## 8.5 Manual test checklist
 
-**Phase 4.1**
-- Is the queue icon visible on local (blue) cards and absent on discovery (magenta) cards?
-- Does clicking the queue icon add the track to Clementine's current playlist?
-- Does the success snackbar appear after a successful add?
-- If Clementine is not running, does the error snackbar appear?
-- If Clementine Remote is disabled, is the error clearly communicated?
-
-**Phase 4.2**
-- Is the "Build playlist from local songs" button visible when at least one local track is present?
-- Is the button hidden or disabled when no local tracks are present?
-- Does clicking the button create a new playlist in Clementine containing all local suggestion tracks?
-- Does the success snackbar appear?
-- If Clementine is not running, does the error snackbar appear?
+- Is the copy icon visible on local (blue) cards and absent on discovery (magenta) cards?
+- Does clicking the icon copy `Artist – Title` to the clipboard?
+- Does the success snackbar confirm what was copied?
+- If clipboard access is denied (e.g. non-HTTPS context), does the error snackbar appear?
 
 ## 8.6 Technical acceptance criteria
 
-- Clementine Remote is called over TCP using protobuf messages
-- `INSERT_URLS` is used for both add-to-current and create-playlist operations
-- File paths are sourced from the `filename` column of the Clementine DB copy
-- Connection refused produces a 503 — not an unhandled exception
-- The host and port are configurable via environment variables without code changes
-- Discovery tracks are never sent to Clementine (they have no local file path)
+- Clipboard write uses the async `navigator.clipboard` API
+- No backend calls are made
+- Icon is hidden on discovery tracks
+- Snackbar feedback is visible within 100ms of clicking
 
-## 8.7 Likely correction themes after Phase 4
+## 8.7 Phase 4 exit criteria
 
-- File path format differences between Windows (`C:\music\...`) and Linux (`/home/...`)
-- Clementine Remote must be explicitly enabled in Clementine settings — needs clear documentation
-- Playlist name conflicts if Clementine already has a playlist with the same name
-- Socket timeout if Clementine is running but unresponsive
-
-## 8.8 Phase 4 exit criteria
-
-Phase 4.1 is complete when:
-- local track cards show a functional queue icon,
-- clicking it adds the track to Clementine's current playlist,
-- and Clementine-unavailable errors are handled safely.
-
-Phase 4.2 is complete when:
-- the "Build playlist from local songs" button creates a new Clementine playlist,
-- all local suggestion tracks appear in that playlist,
-- and failure states are handled safely.
+Phase 4 is complete when:
+- clicking the copy icon on any local track card places `Artist – Title` on the system clipboard,
+- the success snackbar confirms the copy,
+- and the icon is absent on discovery cards.
 
 ---
 
@@ -705,16 +645,13 @@ At the end of each phase:
 ## Phase 4
 
 ### Focus
-- Clementine Remote TCP connection and protobuf message encoding
-- add-to-playlist and create-playlist operations
-- graceful handling of Clementine-not-running states
-- `filePath` propagation from DB copy through to API response
+- copy icon visible on local tracks only
+- clipboard write succeeds
+- snackbar confirms copy
 
 ### Minimum tests
-- unit tests for `ClementineRemoteService` (mock TCP connection or test double)
-- endpoint tests for `POST /api/playlist/track` and `POST /api/playlist/create`
-- one failure-path test: Clementine not running → 503 with safe message
-- frontend tests for queue icon visibility (local tracks only) and button state (hidden when no local tracks)
+- frontend component test: copy icon present on local cards, absent on discovery cards
+- frontend component test: `copyToClipboard()` calls `navigator.clipboard.writeText` with correct string
 
 ---
 
@@ -743,7 +680,7 @@ A phase is done only when all of the following are true:
 **Deliverable:** Chat + web suggestions filtered/grounded to local Clementine collection
 
 ## Phase 4
-**Deliverable:** One-click player control — add tracks to Clementine playlist or build a new playlist from local suggestions
+**Deliverable:** One-click copy of artist + title to clipboard for local tracks
 
 ## Correction model
 After each phase:
@@ -763,7 +700,7 @@ The cleanest plan is:
 1. **Phase 1:** basic chat with the AI
 2. **Phase 2:** add web-based structured suggestions above the chat
 3. **Phase 3:** use the Clementine database to restrict or ground results to your local music
-4. **Phase 4:** control the Clementine player directly — add a track or build a playlist from suggestions
+4. **Phase 4:** copy artist + title to clipboard with one click on local tracks
 
 The most important rule is not just the phases themselves, but the **correction loop after every phase**.
 

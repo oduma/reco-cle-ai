@@ -53,6 +53,14 @@ builder.Services.Configure<ClementineOptions>(options =>
         options.MatchThreshold = threshold;
 });
 
+builder.Services.Configure<ClementineLauncherOptions>(options =>
+{
+    builder.Configuration.GetSection(ClementineLauncherOptions.SectionName).Bind(options);
+
+    var exePath = builder.Configuration["CLEMENTINE_EXE_PATH"];
+    if (!string.IsNullOrWhiteSpace(exePath)) options.ExePath = exePath;
+});
+
 builder.Services.AddHttpClient<GeminiGatewayService>();
 builder.Services.AddHttpClient<OllamaGatewayService>(client =>
 {
@@ -60,9 +68,9 @@ builder.Services.AddHttpClient<OllamaGatewayService>(client =>
     client.Timeout = TimeSpan.FromMinutes(5);
 });
 builder.Services.AddSingleton<IClementineService, ClementineService>();
+builder.Services.AddSingleton<IClementineLauncherService, ClementineLauncherService>();
 builder.Services.AddSingleton<ISuggestionCacheService, SuggestionCacheService>();
 builder.Services.AddScoped<IRecommendationOrchestrationService, RecommendationOrchestrationService>();
-
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();

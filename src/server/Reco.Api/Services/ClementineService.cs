@@ -60,7 +60,7 @@ public class ClementineService : IClementineService
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT title, artist, album
+            SELECT title, artist, album, filename
             FROM songs
             WHERE title  IS NOT NULL AND title  != ''
               AND artist IS NOT NULL AND artist != ''
@@ -69,15 +69,18 @@ public class ClementineService : IClementineService
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            var title  = reader.GetString(0);
-            var artist = reader.GetString(1);
-            var album  = reader.IsDBNull(2) ? null : reader.GetString(2);
+            var title    = reader.GetString(0);
+            var artist   = reader.GetString(1);
+            var album    = reader.IsDBNull(2) ? null : reader.GetString(2);
+            var filePath = reader.IsDBNull(3) ? null : reader.GetString(3);
+            if (filePath == string.Empty) filePath = null;
 
             tracks.Add(new LocalTrack(
                 title, artist, album,
                 TrackMatcher.Normalize(title),
                 TrackMatcher.Normalize(artist),
-                album is not null ? TrackMatcher.Normalize(album) : null
+                album is not null ? TrackMatcher.Normalize(album) : null,
+                filePath
             ));
         }
 
