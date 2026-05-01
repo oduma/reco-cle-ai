@@ -93,13 +93,23 @@ This is the point where the product becomes meaningfully personal.
 
 ---
 
-## Phase 4 — Copy to Clipboard
+## Phase 4 — Local Track Actions
 
 ### Goal
-Add a copy-to-clipboard icon on each local (blue) track card. Clicking it copies `Artist – Title` to the system clipboard using the browser Clipboard API.
+Add per-card actions for local tracks: a copy-to-clipboard button and an "Add to Clementine playlist" button using the `clementine -a <path>` CLI. Also add a panel-level "Add all local tracks" button. Both actions are permanent features of the app.
 
 ### Main user value
-With one click the user has the track name ready to search for, paste into Clementine's search box, or use anywhere else. No network calls or external dependencies required.
+With one click the user can either copy the track name or queue it directly in the running Clementine player, without leaving the app.
+
+---
+
+## Phase 5 — UI/UX Revamp + Album Art
+
+### Goal
+Redesign the full application UI: split-pane layout, redesigned model selector ("Inner Voice" / "Cosmic Voice"), new conversation bubble design, recommendation grid (2×4) with album art from Last.fm, and updated color/typography system. Existing actions are retained in the new tile design.
+
+### Main user value
+The app goes from a functional prototype to a polished, visually coherent product. Album art makes the recommendation pane scannable and immediately meaningful. The split-pane layout gives both conversation and recommendations the space they need.
 
 ---
 
@@ -493,13 +503,124 @@ This is a purely frontend change — no new backend endpoints, no network calls,
 ## 8.7 Phase 4 exit criteria
 
 Phase 4 is complete when:
-- clicking the copy icon on any local track card places `Artist – Title` on the system clipboard,
-- the success snackbar confirms the copy,
-- and the icon is absent on discovery cards.
+- the copy icon places `Artist – Title` on the clipboard for local tracks,
+- the add-to-Clementine button queues tracks in the running player via `clementine -a <path>`,
+- the "Add all local" panel button sends all local file paths in a single call,
+- and both actions produce visible snackbar feedback on success and failure.
 
 ---
 
-## 9. Correction Loop Template for Every Phase
+## 9. Phase 5 — UI/UX Revamp + Album Art
+
+## 9.1 Objective
+
+Redesign the full application UI from a functional prototype into a polished, visually coherent product. The redesign introduces:
+
+- a **split-pane layout** (40% conversation / 60% recommendations),
+- a **redesigned model selector** with branded labels ("Inner Voice" for local LLM, "Cosmic Voice" for Gemini) and provider logos,
+- **album art** sourced from Last.fm for every track tile,
+- a **recommendation grid** (2 rows × 4 columns on desktop) replacing the horizontal scroll strip,
+- a new **color and typography system** (`#4CC7C7` cyan for local, `#D46FB0` magenta for discovery, Inter font),
+- and **redesigned tile action icons** integrating all existing actions (YouTube, add to Clementine, copy to clipboard) into the new tile layout.
+
+All existing functionality from Phases 1–4 is preserved. This phase changes only presentation — no AI logic, matching, or action behavior is altered.
+
+## 9.2 Scope
+
+### In scope
+- Last.fm gateway service (backend) — fetch album art per track, cache in-memory, fail gracefully
+- `albumArtUrl` field added to `TrackSuggestion` DTO and Angular model
+- Recommendation orchestration enriched to call Last.fm concurrently after local matching
+- SVG assets: `clementine.svg`, `youtube.svg`, `gemini.svg` in Angular assets
+- Global typography: Inter font, CSS custom property color tokens
+- Model selector redesign: "Inner Voice" / "Cosmic Voice" pill toggle with logos
+- App layout: horizontal flex split pane, responsive mobile stack
+- Conversation pane: bubble design, new colors, sticky input with microphone icon (decorative)
+- Recommendation pane: CSS grid 2×4, album art tiles, bottom border color by type
+- Tile action icons: YouTube top-right (discovery), Clementine+add top-right (local), copy bottom-left of art (local)
+- Hover state: scale 1.05×, shadow, icon opacity transition
+- Full test suite update to reflect new DOM structure
+
+### Out of scope
+- Voice input functionality (microphone icon is decorative only)
+- Dark mode
+- Any change to AI providers, matching logic, or action behavior
+- Persistent preferences beyond `localStorage`
+
+## 9.3 Recommended deliverables
+
+### Backend
+- `LastFmGatewayService` with `ILastFmGatewayService` interface
+- `LastFmOptions` configuration (`LASTFM_API_KEY`, `LASTFM_BASE_URL`)
+- `albumArtUrl` on `TrackSuggestion` C# DTO
+- Parallel art enrichment in `RecommendationOrchestrationService`
+
+### Frontend
+- `src/assets/icons/clementine.svg`, `youtube.svg`, `gemini.svg`
+- CSS custom properties in `styles.scss` (color tokens, Inter font import)
+- Redesigned `ModelSelectorComponent` with "Inner Voice" / "Cosmic Voice" labels and logos
+- Split-pane root layout in `AppComponent` or a dedicated layout component
+- Redesigned conversation pane: bubbles, colors, sticky input, microphone icon
+- Redesigned `SuggestionCardComponent`: album art, bottom border, action icons, hover state
+- Placeholder art component/directive for `albumArtUrl === null` cases
+- Updated tests for all affected components
+
+## 9.4 Testable user story
+
+> "As a user, I open the app and see a polished split-pane interface. The left side shows my conversation with bubble messages. The right side shows a grid of track tiles with album art, artist names, and clear visual distinction between local and discovery tracks. Each tile has action icons that work as before."
+
+## 9.5 Manual test checklist
+
+- Do conversation and recommendation panes sit side by side on desktop?
+- Do panes stack correctly on mobile (recommendations above conversation)?
+- Does the model selector show "Inner Voice" and "Cosmic Voice" with logos?
+- Is the active model label bold?
+- Does the Gemini logo align to text height?
+- Do recommendation tiles appear in a 2×4 grid on desktop?
+- Does album art load from Last.fm?
+- Is the placeholder visible when art is unavailable?
+- Do local tiles have a cyan bottom border?
+- Do discovery tiles have a magenta bottom border?
+- Does the YouTube icon appear top-right on discovery tiles and open YouTube in a new tab?
+- Does the Clementine icon appear top-right on local tiles and add the track to Clementine?
+- Does the copy icon appear bottom-left of the art on local tiles and copy to clipboard?
+- Does hovering a tile produce scale + shadow?
+- Does the "Add all local" button appear and work when local tracks are present?
+- Do all Phase 1–4 behaviors still work correctly?
+
+## 9.6 Technical acceptance criteria
+
+- `albumArtUrl` is present on every track in the API response (null when unavailable)
+- Last.fm failure does not block the recommendation response
+- Last.fm is called from the backend only — never from Angular
+- SVG assets are served from Angular's static assets
+- Color tokens are CSS custom properties, not scattered hardcoded hex values
+- Tile grid uses CSS Grid, not flexbox, on desktop
+- Responsive breakpoint at 768px produces correct mobile layout
+- All Angular component tests pass with the new DOM structure
+
+## 9.7 Likely correction themes after Phase 5
+
+- Album art aspect ratio or crop issues for non-square artwork
+- Last.fm art missing for niche or non-English artists — placeholder frequency
+- Last.fm rate limit behaviour under repeated rapid queries
+- Grid layout with fewer than 8 tracks looking sparse
+- Icon overlap with album art edges on small screens
+- Model selector width on narrow viewports
+- Conversation bubble alignment or wrapping edge cases
+
+## 9.8 Phase 5 exit criteria
+
+Phase 5 is complete when:
+- the split-pane layout is stable on both desktop and mobile,
+- album art loads from Last.fm or falls back to a placeholder without errors,
+- all tile action icons work identically to their Phase 4 counterparts,
+- the model selector shows the correct labels and logos,
+- and no Phase 1–4 functionality has regressed.
+
+---
+
+## 10. Correction Loop Template for Every Phase
 
 Each phase should end with a structured correction cycle.
 
@@ -571,14 +692,25 @@ Maintain backlog items under these headings.
 - Phase 3 corrections
 
 ## 10.5 Phase 4 backlog
-- Extend Clementine DB adapter to read `filename`
-- Add `FilePath` to `TrackSuggestion` / `LocalTrack`
-- Clementine Remote service (TCP / protobuf)
-- Add-to-playlist endpoint (4.1)
-- Build-playlist endpoint (4.2)
-- Queue icon on local track cards (4.1)
-- "Build playlist from local songs" button (4.2)
+- Copy-to-clipboard icon on local track cards
+- Add-to-Clementine button (per card) via `clementine -a <path>` CLI
+- `POST /api/clementine/add` endpoint accepting `{ filePaths: string[] }`
+- `ClementineLauncherService` — cross-platform, configurable exe path
+- "Add all local" panel button
 - Phase 4 corrections
+
+## 10.6 Phase 5 backlog
+- Last.fm gateway service + configuration + in-memory cache
+- `albumArtUrl` on `TrackSuggestion` DTO and Angular interface
+- Parallel art enrichment in orchestration service
+- SVG assets (clementine.svg, youtube.svg, gemini.svg)
+- Global CSS custom properties + Inter font
+- Model selector redesign ("Inner Voice" / "Cosmic Voice")
+- Split-pane root layout + responsive breakpoint
+- Conversation pane redesign (bubbles, colors, sticky input)
+- Recommendation tile redesign (album art, grid, icons, hover)
+- Test suite update for new DOM structure
+- Phase 5 corrections
 
 ---
 
@@ -645,13 +777,30 @@ At the end of each phase:
 ## Phase 4
 
 ### Focus
-- copy icon visible on local tracks only
-- clipboard write succeeds
-- snackbar confirms copy
+- copy icon and add-to-Clementine icon visible on local tracks only
+- clipboard write and `POST /api/clementine/add` both succeed
+- "Add all local" button sends correct file paths
 
 ### Minimum tests
-- frontend component test: copy icon present on local cards, absent on discovery cards
+- frontend component test: copy and add-btn icons present on local cards, absent on discovery cards
 - frontend component test: `copyToClipboard()` calls `navigator.clipboard.writeText` with correct string
+- frontend component test: add-all-btn visible with correct count when local tracks with file paths exist
+
+## Phase 5
+
+### Focus
+- Last.fm art fetched correctly and enriched into response
+- art failure does not block recommendations
+- split-pane layout renders correctly on desktop and mobile
+- tile grid, action icons, and hover states work as specified
+- all Phase 1–4 behaviors still pass
+
+### Minimum tests
+- backend unit test: `LastFmGatewayService` returns art URL when Last.fm responds, null on failure
+- backend unit test: orchestration correctly enriches track suggestions with `albumArtUrl`
+- frontend component test: tile renders album art when `albumArtUrl` provided; placeholder when null
+- frontend component test: action icons correct per tile type (YouTube top-right / Clementine top-right / copy bottom-left)
+- frontend component test: model selector shows correct labels and active state
 
 ---
 
@@ -680,7 +829,10 @@ A phase is done only when all of the following are true:
 **Deliverable:** Chat + web suggestions filtered/grounded to local Clementine collection
 
 ## Phase 4
-**Deliverable:** One-click copy of artist + title to clipboard for local tracks
+**Deliverable:** Per-card local track actions — copy to clipboard and add to Clementine playlist; panel-level "Add all local" button
+
+## Phase 5
+**Deliverable:** Full UI/UX revamp — split-pane layout, album art from Last.fm, recommendation grid, redesigned model selector, new color and typography system
 
 ## Correction model
 After each phase:
@@ -700,7 +852,8 @@ The cleanest plan is:
 1. **Phase 1:** basic chat with the AI
 2. **Phase 2:** add web-based structured suggestions above the chat
 3. **Phase 3:** use the Clementine database to restrict or ground results to your local music
-4. **Phase 4:** copy artist + title to clipboard with one click on local tracks
+4. **Phase 4:** per-card actions for local tracks (copy to clipboard, add to Clementine) and panel-level "Add all" button
+5. **Phase 5:** full UI/UX revamp with album art, split-pane layout, recommendation grid, and polished visual system
 
 The most important rule is not just the phases themselves, but the **correction loop after every phase**.
 

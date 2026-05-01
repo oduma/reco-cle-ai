@@ -1,5 +1,45 @@
 @use '@angular/material' as mat;
 
+// ── Phase 5 design tokens ────────────────────────────────────────────────────
+:root {
+  // Typography
+  --reco-font:        'Inter', sans-serif;
+  --reco-font-bubble: 'Courier Prime', 'Courier New', Courier, monospace;
+
+  // Surfaces (light theme)
+  --reco-bg:        #f4f4f8;
+  --reco-surface-0: #ffffff;
+  --reco-surface-1: #f0f0f6;
+  --reco-surface-2: #e8e8f0;
+
+  // Text
+  --reco-text:         #1a1a2e;
+  --reco-text-muted:   #5c5c7e;
+  --reco-text-disabled:#9898b8;
+
+  // Borders
+  --reco-border:       rgba(0, 0, 0, 0.10);
+  --reco-border-strong:rgba(0, 0, 0, 0.18);
+
+  // Brand accents (darkened for legibility on white)
+  --reco-primary:     #0097c4;
+  --reco-primary-dim: rgba(0, 151, 196, 0.10);
+  --reco-accent:      #c8006b;
+  --reco-accent-dim:  rgba(200, 0, 107, 0.10);
+
+  // Track type
+  --reco-local:          #0097c4;
+  --reco-local-dim:      rgba(0, 151, 196, 0.10);
+  --reco-discovery:      #c8006b;
+  --reco-discovery-dim:  rgba(200, 0, 107, 0.10);
+
+  // Semantic
+  --reco-error:   #c62828;
+  --reco-warning: #bf360c;
+  --reco-success: #2e7d32;
+}
+
+// ── Angular Material theme ───────────────────────────────────────────────────
 html {
   height: 100%;
   @include mat.theme(
@@ -13,24 +53,27 @@ html {
     )
   );
 
-  // Custom palette: #00C8FF (cyan) primary, #FF2EBE (hot pink) tertiary
-  --mat-sys-primary: #00C8FF;
-  --mat-sys-on-primary: #001f26;
-  --mat-sys-primary-container: #00C8FF;
-  --mat-sys-on-primary-container: #001f26;
-  --mat-sys-inverse-primary: #004d61;
+  // Wire Material system tokens to our brand colors
+  --mat-sys-primary:               var(--reco-primary);
+  --mat-sys-on-primary:            #ffffff;
+  --mat-sys-primary-container:     var(--reco-primary);
+  --mat-sys-on-primary-container:  #ffffff;
+  --mat-sys-inverse-primary:       #004d61;
 
-  --mat-sys-tertiary: #FF2EBE;
-  --mat-sys-on-tertiary: #ffffff;
-  --mat-sys-tertiary-container: #ffd6f5;
+  --mat-sys-tertiary:              var(--reco-accent);
+  --mat-sys-on-tertiary:           #ffffff;
+  --mat-sys-tertiary-container:    #ffd6f5;
   --mat-sys-on-tertiary-container: #3d0035;
 }
 
+// ── Base ─────────────────────────────────────────────────────────────────────
 body {
   color-scheme: light;
   background-color: var(--mat-sys-surface);
   color: var(--mat-sys-on-surface);
-  font: var(--mat-sys-body-medium);
+  font-family: var(--reco-font);
+  font-size: 14px;
+  line-height: 1.5;
   margin: 0;
   height: 100%;
 }

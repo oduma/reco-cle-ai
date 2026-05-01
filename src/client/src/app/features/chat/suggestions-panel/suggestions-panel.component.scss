@@ -1,37 +1,45 @@
 :host {
   display: block;
-  border-bottom: 1px solid var(--mat-sys-outline-variant);
-  background-color: var(--mat-sys-surface-container-low);
+  background: var(--reco-surface-0);
   flex-shrink: 0;
 }
 
 .suggestions-panel {
-  padding: 10px 16px 12px;
+  padding: 12px 16px 14px;
 }
+
+// ── Panel header ──────────────────────────────────────────────────────────────
 
 .panel-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 10px;
-  color: var(--mat-sys-on-surface-variant);
-  font-size: 0.8rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+  color: var(--reco-text-muted);
+  font-family: var(--reco-font);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+
+.panel-title {
+  flex: 1;
+}
+
+// ── Animated music bars (loading indicator in header) ────────────────────────
 
 .music-bars {
   display: inline-flex;
   align-items: flex-end;
   gap: 2px;
   height: 14px;
-  margin-left: 6px;
+  margin-left: 4px;
 
   span {
     display: block;
     width: 3px;
-    background: currentColor;
+    background: var(--reco-primary);
     border-radius: 1px;
     animation: bar-dance 0.9s ease-in-out infinite;
 
@@ -44,73 +52,65 @@
 
 @keyframes bar-dance {
   0%, 100% { height: 3px; }
-  50% { height: 14px; }
+  50%       { height: 14px; }
 }
 
-.panel-title {
-  flex: 1;
-}
+// ── Add-all button ────────────────────────────────────────────────────────────
 
 .add-all-btn {
-  font-size: 0.75rem;
+  font-family: var(--reco-font);
+  font-size: 0.72rem;
+  font-weight: 500;
   height: 28px;
   line-height: 28px;
   padding: 0 10px;
-  color: #00C8FF;
-  border-color: #00C8FF;
+  color: var(--reco-primary);
+  border-color: var(--reco-primary) !important;
 
-  mat-icon {
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
+  .add-all-icon {
+    width: 15px;
+    height: 15px;
     margin-right: 4px;
+    flex-shrink: 0;
+    vertical-align: middle;
   }
 
-  &[disabled] {
-    opacity: 0.4;
-  }
+  &[disabled] { opacity: 0.4; }
 }
+
+// ── State messages ────────────────────────────────────────────────────────────
 
 .panel-state {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 4px;
+  padding: 10px 4px;
+  font-family: var(--reco-font);
   font-size: 0.875rem;
-  color: var(--mat-sys-on-surface-variant);
+  color: var(--reco-text-muted);
 
-  &--error {
-    color: var(--mat-sys-error);
-  }
-
-  &--loading {
-    font-style: italic;
-  }
+  &--error   { color: var(--reco-error); }
+  &--loading { font-style: italic; color: var(--reco-primary); }
 }
+
+// ── Track grid (4 columns desktop → 1 column mobile) ─────────────────────────
 
 .track-list {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 4px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
 
-  // smooth scrollbar on webkit
-  &::-webkit-scrollbar {
-    height: 4px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: var(--mat-sys-outline-variant);
-    border-radius: 2px;
+  @media (max-width: 767px) {
+    grid-template-columns: 1fr;
   }
 }
 
+// ── Panel note ────────────────────────────────────────────────────────────────
+
 .panel-note {
-  margin: 8px 4px 0;
-  font-size: 0.75rem;
-  color: var(--mat-sys-on-surface-variant);
+  margin: 10px 4px 0;
+  font-family: var(--reco-font);
+  font-size: 0.72rem;
   font-style: italic;
+  color: var(--reco-text-muted);
 }

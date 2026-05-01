@@ -1,5 +1,4 @@
 import { Component, computed, input, signal } from '@angular/core';
-import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -9,13 +8,16 @@ import { PlaylistService } from '../../../../core/services/playlist.service';
 @Component({
   selector: 'app-suggestion-card',
   standalone: true,
-  imports: [MatCardModule, MatIconModule, MatButtonModule],
+  imports: [MatIconModule, MatButtonModule],
   templateUrl: './suggestion-card.component.html',
   styleUrl: './suggestion-card.component.scss',
 })
 export class SuggestionCardComponent {
   suggestion = input.required<TrackSuggestion>();
   addingToPlaylist = signal(false);
+  artFailed = signal(false);
+
+  hasArt = computed(() => !!this.suggestion().albumArtUrl && !this.artFailed());
 
   youtubeUrl = computed(() => {
     const q = encodeURIComponent(`${this.suggestion().artist} ${this.suggestion().title}`);
@@ -23,6 +25,10 @@ export class SuggestionCardComponent {
   });
 
   constructor(private snackBar: MatSnackBar, private playlistService: PlaylistService) {}
+
+  onArtError(): void {
+    this.artFailed.set(true);
+  }
 
   copyToClipboard(): void {
     const s = this.suggestion();

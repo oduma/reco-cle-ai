@@ -7,7 +7,7 @@ using Reco.Api.Models;
 
 namespace Reco.Api.Services;
 
-public class OllamaGatewayService : ILLMGatewayService
+public class OllamaGatewayService : IOllamaGatewayService
 {
     private readonly HttpClient _httpClient;
     private readonly OllamaOptions _options;
@@ -31,7 +31,8 @@ public class OllamaGatewayService : ILLMGatewayService
         "JSON object — no other text, no markdown, no code blocks.\n\n" +
         "The JSON must have exactly two fields:\n" +
         "- \"narrative\": a warm, conversational paragraph recommending music, written like a knowledgeable curator. " +
-        "Mention specific tracks and explain why you are recommending them.\n" +
+        "Mention specific tracks and explain why you are recommending them. " +
+        "Wrap every track title and artist name in **double asterisks** — for example: **Kind of Blue** by **Miles Davis**.\n" +
         "- \"tracks\": an array of the specific tracks you mention in your narrative. Each track must have " +
         "\"title\", \"artist\", and optionally \"album\".\n\n" +
         $"Return between {_recommendationOptions.MinTracks} and {_recommendationOptions.MaxTracks} tracks.\n\n" +

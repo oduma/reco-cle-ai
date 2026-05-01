@@ -1132,7 +1132,7 @@ Confirm the product now behaves as a personal local-collection discovery tool.
 
 ---
 
-## 11. Phase 4 Backlog — Copy to Clipboard
+## 11. Phase 4 Backlog — Local Track Actions
 
 ## P4-001 — Add copy-to-clipboard icon to local track cards
 
@@ -1151,11 +1151,72 @@ Show a `content_copy` icon on local (blue) track cards. Clicking it copies `Arti
 - Click writes `"{artist} – {title}"` to the clipboard via `navigator.clipboard.writeText`
 - Success snackbar: `"Copied: {artist} – {title}"`
 - Error snackbar if clipboard write fails
-- No backend calls are made
 
 ---
 
-## P4-002 — Phase 4 demo and manual test pass
+## P4-002 — Add per-card "Add to Clementine" action for local tracks
+
+### Goal
+Add an icon button on local track cards that calls `POST /api/clementine/add` with the track's file path. The backend invokes `clementine -a "<path>"` to add the track to the running Clementine playlist.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- .NET API Agent
+
+### Dependencies
+- P4-001
+
+### Definition of done
+- `queue_music` icon button visible on local cards, absent on discovery cards
+- Clicking it calls `POST /api/clementine/add` with `{ filePaths: [filePath] }`
+- Success snackbar: `"Added to Clementine: Artist – Title"`
+- Error snackbar if call fails
+- Button shows disabled state during the request
+
+---
+
+## P4-003 — Backend: ClementineLauncherService and endpoint
+
+### Goal
+Implement the backend service and endpoint for the add-to-playlist action.
+
+### Suggested owner / agent
+- .NET API Agent
+
+### Dependencies
+- P3C-004
+
+### Definition of done
+- `ClementineLauncherService` builds a single `Process.Start` call with one `-a` argument per path using `ProcessStartInfo.ArgumentList` (cross-platform quoting)
+- OS-appropriate default executable path: `C:\Program Files (x86)\Clementine\clementine.exe` on Windows, `clementine` on Linux
+- Executable path overridable via `CLEMENTINE_EXE_PATH` environment variable
+- `file://` URI inputs are resolved to local paths before launching
+- `POST /api/clementine/add` accepts `{ filePaths: string[] }` — works for both single track and batch
+- Returns 500 with `{ error }` on failure; 200 OK on success
+
+---
+
+## P4-004 — Add "Add all local tracks" panel button
+
+### Goal
+Add a stroked button to the recommendations panel header that adds all local tracks (those with `filePath` set) to Clementine in a single backend call.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P4-003
+
+### Definition of done
+- Button visible only when at least one local track with a file path is present
+- Button label shows the count: `"Add N to Clementine"`
+- Clicking sends all local file paths in a single `POST /api/clementine/add` call
+- Button shows disabled state during the request
+- Success and error snackbar feedback
+
+---
+
+## P4-005 — Phase 4 demo and manual test pass
 
 ### Goal
 Run the Phase 4 manual checklist from the phased development plan.
@@ -1164,7 +1225,7 @@ Run the Phase 4 manual checklist from the phased development plan.
 - Angular Frontend Agent
 
 ### Dependencies
-- P4-001
+- P4-001 through P4-004
 
 ### Definition of done
 - Phase 4 manual checklist completed
@@ -1177,13 +1238,266 @@ Run the Phase 4 manual checklist from the phased development plan.
 ## P4C-001 — Phase 4 stabilization sign-off
 
 ### Goal
-Confirm Phase 4 is stable.
+Confirm Phase 4 is stable and all local track actions work end-to-end.
 
 ### Dependencies
-- P4-002
+- P4-005
 
 ### Definition of done
 - Phase 4 exit criteria passed
+
+---
+
+## 12. Phase 5 Backlog — UI/UX Revamp + Album Art
+
+## P5-001 — Last.fm gateway service (backend)
+
+### Goal
+Implement `LastFmGatewayService` that fetches album art for a given artist + title (and optionally album) from the Last.fm API.
+
+### Suggested owner / agent
+- .NET API Agent
+- Domain & Provider Integration Agent
+
+### Dependencies
+- P4C-001
+
+### Definition of done
+- `ILastFmGatewayService` interface and `LastFmGatewayService` implementation exist
+- Lookup strategy: `album.getInfo` first (when album known), fallback to `track.getInfo`
+- Returns `extralarge` image URL, falls back to `large`, returns `null` if absent
+- Results cached in-memory per `(artist, title)` key for the process lifetime
+- A failed or rate-limited Last.fm call logs a warning and returns `null` — does not throw
+- `LASTFM_API_KEY` and `LASTFM_BASE_URL` configurable via environment variables
+- Registered in `Program.cs`
+
+---
+
+## P5-002 — Enrich TrackSuggestion with albumArtUrl
+
+### Goal
+Add `albumArtUrl` to the `TrackSuggestion` C# DTO and Angular interface, and enrich each suggestion concurrently via `LastFmGatewayService` in the orchestration service.
+
+### Suggested owner / agent
+- .NET API Agent
+- Angular Frontend Agent
+
+### Dependencies
+- P5-001
+
+### Definition of done
+- `TrackSuggestion` C# DTO has `string? AlbumArtUrl` property
+- Angular `TrackSuggestion` interface has `albumArtUrl?: string | null`
+- `RecommendationOrchestrationService` calls `LastFmGatewayService` for all suggestions concurrently (`Task.WhenAll`) after local matching
+- `albumArtUrl` is present in every API response (null when unavailable)
+- Last.fm failure on individual tracks does not fail the whole response
+
+---
+
+## P5-003 — Add SVG assets
+
+### Goal
+Place the three required icon SVG files into the Angular assets folder.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P4C-001
+
+### Definition of done
+- `src/client/src/assets/icons/clementine.svg` exists and renders correctly
+- `src/client/src/assets/icons/youtube.svg` exists and renders correctly
+- `src/client/src/assets/icons/gemini.svg` exists (multicolor star) and renders correctly
+- All SVGs are inline-safe (no external references, no scripts)
+- `angular.json` assets glob includes `src/assets/icons/`
+
+---
+
+## P5-004 — Global typography and CSS color tokens
+
+### Goal
+Introduce Inter font and define the Phase 5 color system as CSS custom properties globally.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P4C-001
+
+### Definition of done
+- Inter imported from Google Fonts in `styles.scss`
+- `body` uses Inter as primary font with IBM Plex Sans and system-ui fallbacks
+- CSS custom properties on `:root`: `--color-local`, `--color-discovery`, `--color-neutral`, `--color-surface`, `--color-bubble-user`, `--color-bubble-ai`, `--color-text-primary`
+- All existing hardcoded hex values in component SCSS updated to reference tokens
+
+---
+
+## P5-005 — Redesign model selector ("Inner Voice" / "Cosmic Voice")
+
+### Goal
+Replace the current "Local" / "Gemini" toggle with the new "Inner Voice" / "Cosmic Voice" pill selector with provider logos.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- Angular Material UX Agent
+
+### Dependencies
+- P5-003
+- P5-004
+
+### Definition of done
+- Labels read "Inner Voice" (Ollama) and "Cosmic Voice" (Gemini)
+- Each pill shows the provider logo (`gemini.svg` for Cosmic Voice, `memory` mat-icon or waveform for Inner Voice)
+- Active pill: bold label, opaque background
+- Inactive pill: regular weight, transparent background, logo at 50% opacity
+- Logos scaled to current line height (~18–20px)
+- Selection behavior and localStorage persistence unchanged
+
+---
+
+## P5-006 — Implement split-pane root layout
+
+### Goal
+Restructure the root app layout into a horizontal 40/60 split pane with a responsive mobile breakpoint.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P5-004
+
+### Definition of done
+- Root layout is a flex row: left pane 40%, right pane 60%
+- Both panes are full viewport height with independent overflow scroll
+- Single `1px` border separates the panes on desktop
+- At ≤ 768px: panes stack vertically, recommendations above conversation, each full width
+- Existing component tree is preserved; only layout container changes
+
+---
+
+## P5-007 — Redesign conversation pane
+
+### Goal
+Apply the Phase 5 visual design to the conversation pane: bubble messages, new colors, sticky input with microphone icon.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- Angular Material UX Agent
+
+### Dependencies
+- P5-004
+- P5-006
+
+### Definition of done
+- User messages: right-aligned, `var(--color-bubble-user)` background, `border-radius: 16px`
+- AI messages: left-aligned, `var(--color-bubble-ai)` background, `border-radius: 16px`
+- Minimal shadow: `0 1px 2px rgba(0,0,0,0.06)`
+- Conversation pane background: `var(--color-surface)`
+- Input area sticky at pane bottom; placeholder `"Type a message…"`
+- Decorative microphone icon button trailing in input field (no functionality)
+- All existing chat behavior (loading phrases, error states) preserved
+
+---
+
+## P5-008 — Redesign recommendation tile component
+
+### Goal
+Replace the existing `SuggestionCardComponent` with the Phase 5 tile design: album art, bottom border color, action icons, placeholder, hover state.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- Angular Material UX Agent
+
+### Dependencies
+- P5-002
+- P5-003
+- P5-004
+
+### Definition of done
+- Tile shows album art square (full tile width), `object-fit: cover`
+- Placeholder rendered when `albumArtUrl` is null: colored block + `music_note` mat-icon at 20% opacity
+- Bottom border: `2px solid var(--color-local)` for local, `2px solid var(--color-discovery)` for discovery
+- Track title (14px bold) and artist name (12px regular) below art
+- Action icon top-right of art (absolutely positioned):
+  - Discovery: `youtube.svg` → opens YouTube search in new tab
+  - Local: `clementine.svg` + overlaid `add` mat-icon → calls `POST /api/clementine/add`
+- Copy icon bottom-left of art (absolutely positioned, local tracks only):
+  - `content_copy` mat-icon, 16px, `var(--color-local)` color
+  - Calls `navigator.clipboard.writeText("Artist – Title")`
+- Hover: `scale(1.05)`, `box-shadow: 0 4px 16px rgba(0,0,0,0.18)`, transition `0.18s ease`
+- Action icons: 0.75 opacity at rest → 1.0 on hover
+
+---
+
+## P5-009 — Implement recommendation grid layout
+
+### Goal
+Replace the horizontal scroll flex row in `SuggestionsPanelComponent` with a CSS Grid 2×4 layout on desktop, single column on mobile.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P5-008
+- P5-006
+
+### Definition of done
+- `.track-grid` uses `display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px`
+- At ≤ 768px: single column
+- "Add all local" button and panel header preserved in their current positions
+- Empty grid cells not rendered when fewer than 8 tracks are returned
+
+---
+
+## P5-010 — Update test suite for Phase 5 DOM
+
+### Goal
+Update all affected Angular component tests to match the new DOM structure introduced in Phase 5.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P5-005 through P5-009
+
+### Definition of done
+- All existing tests pass with the new component templates
+- New tests added for: album art rendering, placeholder fallback, action icon placement per tile type, model selector label rendering, split-pane layout at desktop and mobile widths
+
+---
+
+## P5-011 — Phase 5 demo and manual test pass
+
+### Goal
+Run the full Phase 5 checklist from the phased development plan.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- .NET API Agent
+
+### Dependencies
+- P5-001 through P5-010
+
+### Definition of done
+- Phase 5 manual checklist completed
+- Issues logged into Phase 5 correction backlog
+
+---
+
+## 12a. Phase 5 Correction Loop Backlog
+
+## P5C-001 — Phase 5 stabilization sign-off
+
+### Goal
+Confirm Phase 5 is stable and the visual revamp meets the acceptance criteria in the requirements document.
+
+### Dependencies
+- P5-011
+
+### Definition of done
+- Phase 5 exit criteria passed
+- All acceptance criteria from `ui-ux-revamp-phase5-requirements.md` verified
 
 ---
 
@@ -1304,10 +1618,15 @@ Includes:
 
 ## Milestone E — Phase 4 Complete
 Includes:
-- P4-001 through P4-002
+- P4-001 through P4-005
 - P4C-001
 
-## Milestone F — Hardening Baseline
+## Milestone F — Phase 5 Complete
+Includes:
+- P5-001 through P5-011
+- P5C-001
+
+## Milestone G — Hardening Baseline
 Includes:
 - X-001 through X-005 as appropriate
 
@@ -1348,7 +1667,8 @@ The delivery sequence is intentionally incremental:
 - **Phase 1:** chat-only
 - **Phase 2:** chat + web suggestions
 - **Phase 3:** chat + web suggestions filtered/grounded to Clementine local ownership
-- **Phase 4:** copy artist + title to clipboard from local track cards
+- **Phase 4:** per-card actions for local tracks (copy to clipboard, add to Clementine) and panel-level "Add all" button
+- **Phase 5:** full UI/UX revamp with album art from Last.fm, split-pane layout, recommendation grid, and polished visual system
 
 The critical rule is this:
 

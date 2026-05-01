@@ -77,21 +77,21 @@ describe('SuggestionsPanelComponent', () => {
   it('shows suggestion title, artist, and album when all are present', async () => {
     await setup({ suggestions: [SAMPLE_TRACKS[0]] });
     const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('.track-title')?.textContent?.trim()).toBe('Blue in Green');
-    expect(el.querySelector('.track-artist')?.textContent?.trim()).toBe('Miles Davis');
-    expect(el.querySelector('.track-album')?.textContent?.trim()).toBe('Kind of Blue');
+    expect(el.querySelector('.tile-title')?.textContent?.trim()).toBe('Blue in Green');
+    expect(el.querySelector('.tile-artist')?.textContent?.trim()).toBe('Miles Davis');
+    expect(el.querySelector('.tile-album')?.textContent?.trim()).toBe('Kind of Blue');
   });
 
   it('does not render album element when album is null', async () => {
     await setup({ suggestions: [SAMPLE_TRACKS[1]] });
     const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('.track-album')).toBeNull();
+    expect(el.querySelector('.tile-album')).toBeNull();
   });
 
   it('shows copy button for local tracks', async () => {
     await setup({ suggestions: [LOCAL_TRACK] });
     const el: HTMLElement = fixture.nativeElement;
-    const btn = el.querySelector('.copy-btn');
+    const btn = el.querySelector('.art-overlay-btn');
     expect(btn).toBeTruthy();
     expect(btn?.getAttribute('aria-label')).toContain('Miles Davis');
   });
@@ -99,13 +99,13 @@ describe('SuggestionsPanelComponent', () => {
   it('does not show copy button for discovery tracks', async () => {
     await setup({ suggestions: [SAMPLE_TRACKS[0]] });
     const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('.copy-btn')).toBeNull();
+    expect(el.querySelector('.art-overlay-btn')).toBeNull();
   });
 
   it('shows add-to-clementine button for local tracks', async () => {
     await setup({ suggestions: [LOCAL_TRACK] });
     const el: HTMLElement = fixture.nativeElement;
-    const btn = el.querySelector('.add-btn');
+    const btn = el.querySelector('.footer-action--btn');
     expect(btn).toBeTruthy();
     expect(btn?.getAttribute('aria-label')).toContain('Miles Davis');
   });
@@ -113,7 +113,7 @@ describe('SuggestionsPanelComponent', () => {
   it('does not show add-to-clementine button for discovery tracks', async () => {
     await setup({ suggestions: [SAMPLE_TRACKS[0]] });
     const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('.add-btn')).toBeNull();
+    expect(el.querySelector('.footer-action--btn')).toBeNull();
   });
 
   it('shows add-all button when local tracks with file paths are present', async () => {

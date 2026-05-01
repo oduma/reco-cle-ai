@@ -13,6 +13,7 @@ The app is being built in phases:
 2. **Phase 2:** chat + web suggestions above the chat
 3. **Phase 3:** chat + web suggestions filtered/grounded using the local Clementine library
 4. **Phase 4:** local track actions — copy artist+title to clipboard, and add track(s) to Clementine playlist via `clementine -a <path>` CLI (cross-platform)
+5. **Phase 5:** full UI/UX revamp — split-pane layout (40/60), album art from Last.fm, 2×4 recommendation grid, redesigned model selector ("Inner Voice" / "Cosmic Voice"), Inter font, CSS color tokens
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:
@@ -94,6 +95,8 @@ Use these locations as the primary sources of truth:
 - `RECOMMENDATION_MAX_TRACKS`
 - `RECOMMENDATION_SUGGESTION_CACHE_MINUTES`
 - `CLEMENTINE_EXE_PATH` — path to Clementine executable (default: `C:\Program Files (x86)\Clementine\clementine.exe` on Windows, `clementine` on Linux)
+- `LASTFM_API_KEY` — Last.fm read API key for album art (required in Phase 5)
+- `LASTFM_BASE_URL` — Last.fm API base URL (optional, defaults to `https://ws.audioscrobbler.com/2.0/`)
 - `APP_PUBLIC_URL`
 - `APP_CONTACT_EMAIL`
 - `APP_VERSION`

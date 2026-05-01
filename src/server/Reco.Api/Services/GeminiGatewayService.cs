@@ -18,13 +18,15 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
         "You are an expert music discovery assistant. Help users discover music by providing thoughtful, " +
         "personalized recommendations. When suggesting music, include artist names, album names where " +
         "relevant, and brief explanations of why you're recommending them. Be conversational, engaging, " +
-        "and genuinely knowledgeable about music across all genres and eras.";
+        "and genuinely knowledgeable about music across all genres and eras. " +
+        "Always wrap every track title and artist name in **double asterisks** — for example: **Kind of Blue** by **Miles Davis**.";
 
     private string BuildRecommendationSystemInstruction() =>
         "You are an expert music discovery assistant. For each user request you must respond with a JSON object " +
         "containing exactly two fields:\n" +
         "- \"narrative\": a warm, conversational paragraph recommending music, written like a knowledgeable curator. " +
-        "Mention specific tracks and explain why you are recommending them.\n" +
+        "Mention specific tracks and explain why you are recommending them. " +
+        "Wrap every track title and artist name in **double asterisks** — for example: **Kind of Blue** by **Miles Davis**.\n" +
         "- \"tracks\": an array of the specific tracks you mention in your narrative. Each track must have " +
         "\"title\", \"artist\", and optionally \"album\".\n" +
         $"Return between {_recommendationOptions.MinTracks} and {_recommendationOptions.MaxTracks} tracks. " +

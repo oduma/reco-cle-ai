@@ -5,5 +5,6 @@ public record TrackSuggestion(
     string Artist,
     string? Album,
     bool InLocalLibrary = false,
-    string? FilePath = null
+    string? FilePath = null,
+    string? AlbumArtUrl = null
 );

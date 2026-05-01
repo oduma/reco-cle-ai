@@ -7,18 +7,20 @@ namespace Reco.Api.Services;
 
 public class RecommendationOrchestrationService : IRecommendationOrchestrationService
 {
-    private readonly GeminiGatewayService _geminiGateway;
-    private readonly OllamaGatewayService _ollamaGateway;
+    private readonly IGeminiGatewayService _geminiGateway;
+    private readonly IOllamaGatewayService _ollamaGateway;
     private readonly IClementineService _clementine;
     private readonly ISuggestionCacheService _suggestionCache;
+    private readonly ILastFmGatewayService _lastFm;
     private readonly ClementineOptions _clementineOptions;
     private readonly ILogger<RecommendationOrchestrationService> _logger;
 
     public RecommendationOrchestrationService(
-        GeminiGatewayService geminiGateway,
-        OllamaGatewayService ollamaGateway,
+        IGeminiGatewayService geminiGateway,
+        IOllamaGatewayService ollamaGateway,
         IClementineService clementine,
         ISuggestionCacheService suggestionCache,
+        ILastFmGatewayService lastFm,
         IOptions<ClementineOptions> clementineOptions,
         ILogger<RecommendationOrchestrationService> logger)
     {
@@ -26,6 +28,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         _ollamaGateway = ollamaGateway;
         _clementine = clementine;
         _suggestionCache = suggestionCache;
+        _lastFm = lastFm;
         _clementineOptions = clementineOptions.Value;
         _logger = logger;
     }
@@ -97,7 +100,30 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             .Where(t => !t.InLocalLibrary || localToReturn.Contains(t))
             .ToList();
 
-        return new RecommendationResponse(result.Narrative, tracksToReturn, updatedHistory, message, providerUsed, usedFallback);
+        var enriched = await EnrichWithAlbumArtAsync(tracksToReturn, cancellationToken);
+
+        return new RecommendationResponse(result.Narrative, enriched, updatedHistory, message, providerUsed, usedFallback);
+    }
+
+    private async Task<IReadOnlyList<TrackSuggestion>> EnrichWithAlbumArtAsync(
+        IReadOnlyList<TrackSuggestion> tracks,
+        CancellationToken cancellationToken)
+    {
+        if (tracks.Count == 0) return tracks;
+
+        var artTasks = tracks
+            .Select(t => _lastFm.GetAlbumArtUrlAsync(t.Artist, t.Title, t.Album, cancellationToken))
+            .ToArray();
+
+        var artUrls = await Task.WhenAll(artTasks);
+
+        _logger.LogInformation(
+            "[Recommendations] Album art enriched: {Found}/{Total} tracks have art",
+            artUrls.Count(u => u is not null), tracks.Count);
+
+        return tracks
+            .Select((t, i) => t with { AlbumArtUrl = artUrls[i] })
+            .ToList();
     }
 
     private static bool IsOllamaFailure(Exception ex) =>

@@ -17,7 +17,7 @@
         (click)="addAllToClementine()"
         [disabled]="addingAll()"
         [attr.aria-label]="'Add all ' + localFilePaths().length + ' local tracks to Clementine playlist'">
-        <mat-icon>playlist_add</mat-icon>
+        <img src="/icons/clementine.svg" class="add-all-icon" alt="" aria-hidden="true" />
         Add {{ localFilePaths().length }} to Clementine
       </button>
     }

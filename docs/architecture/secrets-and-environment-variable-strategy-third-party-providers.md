@@ -47,6 +47,24 @@ This secret must only be used by the backend API when calling Gemini.
 
 ---
 
+## 3.2 Last.fm API
+
+### Secret type
+- API key (read-only)
+
+### Required
+Yes (Phase 5 onwards — album art fetching)
+
+### Recommended environment variable
+```text
+LASTFM_API_KEY
+```
+
+### Notes
+This key must only be used by the backend `LastFmGatewayService`. The Angular frontend must never call Last.fm directly. A free Last.fm developer account provides a read-only API key sufficient for `album.getInfo` and `track.getInfo` lookups. Rate limit: 5 requests per second per API key.
+
+---
+
 ## 4. Non-Secret but Important Provider Configuration
 
 The following values are not necessarily secrets, but should still be centrally configured and not scattered throughout the codebase.
@@ -71,14 +89,26 @@ CLEMENTINE_DB_PATH
 CLEMENTINE_MATCH_THRESHOLD
 ```
 
-## 4.4 Recommendation behavior
+## 4.4 Clementine launcher
+```text
+CLEMENTINE_EXE_PATH
+```
+Default: `C:\Program Files (x86)\Clementine\clementine.exe` on Windows, `clementine` on Linux.
+
+## 4.5 Last.fm (non-secret configuration)
+```text
+LASTFM_BASE_URL
+```
+Optional. Defaults to `https://ws.audioscrobbler.com/2.0/`. The API key itself is a secret (see Section 3.2).
+
+## 4.6 Recommendation behavior
 ```text
 RECOMMENDATION_MIN_TRACKS
 RECOMMENDATION_MAX_TRACKS
 RECOMMENDATION_SUGGESTION_CACHE_MINUTES
 ```
 
-## 4.6 Shared application identification
+## 4.7 Shared application identification
 ```text
 APP_PUBLIC_URL
 APP_CONTACT_EMAIL
@@ -123,6 +153,11 @@ OLLAMA_MODEL=
 # Clementine
 CLEMENTINE_DB_PATH=
 CLEMENTINE_MATCH_THRESHOLD=
+CLEMENTINE_EXE_PATH=
+
+# Last.fm (Phase 5)
+LASTFM_API_KEY=
+LASTFM_BASE_URL=
 
 # Recommendation tuning
 RECOMMENDATION_MIN_TRACKS=
@@ -162,6 +197,13 @@ The backend maps environment variables into strongly-typed options classes.
 - MinTracks
 - MaxTracks
 - SuggestionCacheDurationMinutes
+
+### ClementineLauncherOptions
+- ExePath
+
+### LastFmOptions
+- ApiKey
+- BaseUrl
 
 ### AppIdentityOptions
 - PublicUrl

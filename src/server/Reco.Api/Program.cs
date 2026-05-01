@@ -61,14 +61,31 @@ builder.Services.Configure<ClementineLauncherOptions>(options =>
     if (!string.IsNullOrWhiteSpace(exePath)) options.ExePath = exePath;
 });
 
+builder.Services.Configure<LastFmOptions>(options =>
+{
+    builder.Configuration.GetSection(LastFmOptions.SectionName).Bind(options);
+
+    var apiKey = builder.Configuration["LASTFM_API_KEY"];
+    if (!string.IsNullOrWhiteSpace(apiKey)) options.ApiKey = apiKey;
+
+    var baseUrl = builder.Configuration["LASTFM_BASE_URL"];
+    if (!string.IsNullOrWhiteSpace(baseUrl)) options.BaseUrl = baseUrl;
+});
+
 builder.Services.AddHttpClient<GeminiGatewayService>();
+builder.Services.AddScoped<IGeminiGatewayService>(sp => sp.GetRequiredService<GeminiGatewayService>());
+
 builder.Services.AddHttpClient<OllamaGatewayService>(client =>
 {
     // CPU inference on a local model can take several minutes — give it room
     client.Timeout = TimeSpan.FromMinutes(5);
 });
+builder.Services.AddScoped<IOllamaGatewayService>(sp => sp.GetRequiredService<OllamaGatewayService>());
+
+builder.Services.AddHttpClient<LastFmGatewayService>();
 builder.Services.AddSingleton<IClementineService, ClementineService>();
 builder.Services.AddSingleton<IClementineLauncherService, ClementineLauncherService>();
+builder.Services.AddSingleton<ILastFmGatewayService, LastFmGatewayService>();
 builder.Services.AddSingleton<ISuggestionCacheService, SuggestionCacheService>();
 builder.Services.AddScoped<IRecommendationOrchestrationService, RecommendationOrchestrationService>();
 builder.Services.AddControllers();

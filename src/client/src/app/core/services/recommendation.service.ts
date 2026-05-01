@@ -13,6 +13,7 @@ export interface TrackSuggestion {
   album: string | null;
   inLocalLibrary: boolean;
   filePath?: string;
+  albumArtUrl?: string | null;
 }
 
 export interface RecommendationRequest {

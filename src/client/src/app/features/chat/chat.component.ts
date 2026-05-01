@@ -10,6 +10,7 @@ import {
   TrackSuggestion,
 } from '../../core/services/recommendation.service';
 import { SuggestionsPanelComponent } from './suggestions-panel/suggestions-panel.component';
+import { BoldMarkdownPipe } from '../../core/pipes/bold-markdown.pipe';
 
 interface Message {
   role: 'user' | 'model';
@@ -51,6 +52,7 @@ const LOADING_PHRASES = [
     MatButtonToggleModule,
     MatIconModule,
     SuggestionsPanelComponent,
+    BoldMarkdownPipe,
   ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
@@ -81,6 +83,12 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
   private shouldScroll = false;
   private loadingInterval: ReturnType<typeof setInterval> | null = null;
   private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Prompt history (terminal-style up/down navigation)
+  private readonly HISTORY_LIMIT = 50;
+  private promptHistory: string[] = [];
+  private historyIndex = -1;   // -1 = current draft
+  private currentDraft = '';
 
   constructor(private recommendationService: RecommendationService) {
     effect(() => {
@@ -120,6 +128,15 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
     if (!text || this.loading()) return;
 
     this.messages.update(msgs => [...msgs, { role: 'user', text }]);
+
+    // Record in history, skipping consecutive duplicates
+    if (this.promptHistory[this.promptHistory.length - 1] !== text) {
+      this.promptHistory.push(text);
+      if (this.promptHistory.length > this.HISTORY_LIMIT) this.promptHistory.shift();
+    }
+    this.historyIndex = -1;
+    this.currentDraft = '';
+
     this.prompt.set('');
     this.loading.set(true);
     this.error.set(null);
@@ -166,10 +183,37 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       this.send();
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      if (this.promptHistory.length === 0) return;
+      event.preventDefault();
+      if (this.historyIndex === -1) this.currentDraft = this.prompt();
+      this.historyIndex = this.historyIndex === -1
+        ? this.promptHistory.length - 1
+        : Math.max(0, this.historyIndex - 1);
+      this.prompt.set(this.promptHistory[this.historyIndex]);
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      if (this.historyIndex === -1) return;
+      event.preventDefault();
+      this.historyIndex++;
+      if (this.historyIndex >= this.promptHistory.length) {
+        this.historyIndex = -1;
+        this.prompt.set(this.currentDraft);
+      } else {
+        this.prompt.set(this.promptHistory[this.historyIndex]);
+      }
+      return;
     }
   }
 
   protected updatePrompt(event: Event): void {
+    // Typing exits history navigation mode
+    this.historyIndex = -1;
     this.prompt.set((event.target as HTMLInputElement).value);
   }
 
