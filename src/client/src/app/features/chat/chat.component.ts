@@ -1,4 +1,4 @@
-import { Component, signal, ViewChild, ElementRef, AfterViewChecked, OnDestroy, effect } from '@angular/core';
+import { Component, signal, ViewChild, ElementRef, AfterViewChecked, OnDestroy, OnInit, effect } from '@angular/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
@@ -57,7 +57,7 @@ const LOADING_PHRASES = [
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
 })
-export class ChatComponent implements AfterViewChecked, OnDestroy {
+export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   @ViewChild('messageList') private messageListRef!: ElementRef<HTMLElement>;
 
   protected messages = signal<Message[]>([]);
@@ -73,6 +73,7 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
   protected hasSuggestions = signal(false);
 
   protected loadingPhrase = signal(LOADING_PHRASES[0]);
+  protected tryLineHint = signal('');
 
   protected provider = signal<'gemini' | 'local'>(
     (localStorage.getItem(PROVIDER_KEY) as 'gemini' | 'local') ?? 'gemini'
@@ -87,8 +88,10 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
   // Prompt history (terminal-style up/down navigation)
   private readonly HISTORY_LIMIT = 50;
   private promptHistory: string[] = [];
-  private historyIndex = -1;   // -1 = current draft
+  private historyIndex = -1;
   private currentDraft = '';
+
+  private isHintPreview = false;
 
   constructor(private recommendationService: RecommendationService) {
     effect(() => {
@@ -104,6 +107,19 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
         }
       }
     });
+  }
+
+  async ngOnInit(): Promise<void> {
+    try {
+      const res = await fetch('/trylines.txt');
+      const text = await res.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length > 0) {
+        this.tryLineHint.set(lines[Math.floor(Math.random() * lines.length)]);
+      }
+    } catch {
+      // hint stays empty if asset unavailable
+    }
   }
 
   ngOnDestroy(): void {
@@ -189,7 +205,10 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
     if (event.key === 'ArrowUp') {
       if (this.promptHistory.length === 0) return;
       event.preventDefault();
-      if (this.historyIndex === -1) this.currentDraft = this.prompt();
+      if (this.historyIndex === -1) {
+        this.currentDraft = this.isHintPreview ? '' : this.prompt();
+        this.isHintPreview = false;
+      }
       this.historyIndex = this.historyIndex === -1
         ? this.promptHistory.length - 1
         : Math.max(0, this.historyIndex - 1);
@@ -211,9 +230,25 @@ export class ChatComponent implements AfterViewChecked, OnDestroy {
     }
   }
 
+  protected onFocus(event: FocusEvent): void {
+    if (!this.prompt().trim() && this.tryLineHint()) {
+      this.prompt.set(this.tryLineHint());
+      this.isHintPreview = true;
+      const input = event.target as HTMLInputElement;
+      setTimeout(() => input.select(), 0);
+    }
+  }
+
+  protected onBlur(): void {
+    if (this.isHintPreview) {
+      this.prompt.set('');
+      this.isHintPreview = false;
+    }
+  }
+
   protected updatePrompt(event: Event): void {
-    // Typing exits history navigation mode
     this.historyIndex = -1;
+    this.isHintPreview = false;
     this.prompt.set((event.target as HTMLInputElement).value);
   }
 

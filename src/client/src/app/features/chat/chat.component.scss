@@ -26,11 +26,18 @@
 }
 
 .header-logo {
-  width: 36px;
-  height: 36px;
+  height: 38px;
+  width: auto;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: 4px;
   flex-shrink: 0;
+}
+
+.chat-title-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .chat-title {
@@ -39,7 +46,15 @@
   font-family: var(--reco-font);
   letter-spacing: 0.01em;
   color: var(--reco-primary);
-  flex: 1;
+}
+
+.chat-tagline {
+  margin: 0;
+  font-size: 0.68rem;
+  font-style: italic;
+  font-family: var(--reco-font);
+  color: var(--reco-text-muted);
+  letter-spacing: 0.01em;
 }
 
 // ── Provider toggle ───────────────────────────────────────────────────────────
@@ -174,6 +189,12 @@
     font-style: italic;
     font-family: var(--reco-font);
   }
+
+  .reco-loading-text {
+    font-family: var(--reco-font-bubble);
+    color: var(--reco-primary);
+    animation: note-pulse 1.5s ease-in-out infinite;
+  }
 }
 
 // ── Message list ─────────────────────────────────────────────────────────────
@@ -206,13 +227,12 @@
   padding: 40px 20px;
 }
 
-.empty-icon {
-  font-size: 56px;
-  width: 56px;
-  height: 56px;
-  opacity: 0.3;
+.empty-logo {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  opacity: 0.18;
   margin-bottom: 8px;
-  color: var(--reco-primary);
 }
 
 .empty-prompt {

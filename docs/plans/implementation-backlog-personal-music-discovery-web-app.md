@@ -1501,6 +1501,168 @@ Confirm Phase 5 is stable and the visual revamp meets the acceptance criteria in
 
 ---
 
+## 13. Phase 6 — Reasonic Brand Identity Backlog
+
+## P6-001 — Rename product to Reasonic (docs + browser tab + header)
+
+### Goal
+Update the product name everywhere it appears: browser `<title>`, page header, README, CLAUDE.md, and all docs.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- Documentation Agent
+
+### Dependencies
+- P5C-001
+
+### Definition of done
+- `<title>` in `index.html` reads "Reasonic"
+- Header title text reads "Reasonic"
+- README.md and CLAUDE.md updated
+- No remaining visible references to "RECO-CLE-AI" or "Personal Music Discovery Web App" as the product name
+
+---
+
+## P6-002 — Replace logo and favicon
+
+### Goal
+Copy `z-ai-comm/logo.png` → `src/client/public/logo.png` and `z-ai-comm/favicon.png` → `src/client/public/favicon.png`. Update `index.html` favicon `<link>` and header `<img>` src.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P6-001
+
+### Definition of done
+- New logo appears in header
+- New favicon appears in browser tab
+- Old `mainimage.png` reference removed from header
+
+---
+
+## P6-003 — Add tagline below product name in header
+
+### Goal
+Display the tagline "The music hiding in your mind" in charcoal color directly below the "Reasonic" heading in the chat header.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P6-002
+
+### Definition of done
+- Tagline is visible under the product name
+- Tagline uses charcoal/muted color that reads cleanly on the light header background
+
+---
+
+## P6-004 — Overhaul empty chat state
+
+### Goal
+Replace the headphones icon with a muted version of the Reasonic logo. Change the main text to "What does your mind sound like today?" and the hint to a randomly selected line from `trylines.txt`.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P6-002
+
+### Definition of done
+- Logo image shown (muted, not icon) in empty chat state
+- Main text updated
+- Hint is a random line from `trylines.txt`, loaded via `fetch('/trylines.txt')` at component init
+- `trylines.txt` copied to `src/client/public/trylines.txt` so it is served at `/trylines.txt`
+
+---
+
+## P6-005 — Overhaul right-panel empty and loading states
+
+### Goal
+Update right-panel empty state text to "This is where your mind's music will take shape." When `hasSuggestions` is false and `loading` is true, display the loading phrase in-place of the empty state text (same location, no separate spinner element).
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P6-001
+
+### Definition of done
+- Empty state text updated
+- Loading state replaces empty state in-place while a request is in-flight and no suggestions exist yet
+
+---
+
+## P6-006 — Unified magenta tile styling with local/discovery emphasis
+
+### Goal
+Give all track tiles a magenta outline and magenta title/artist text. Local tracks are full-opacity (prominent). Discovery tracks are dimmed (~0.4 opacity on the card) **except** the YouTube link button, which remains full opacity.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P5-008
+
+### Definition of done
+- All tiles have magenta border and magenta text for title/artist
+- Local track cards: full opacity
+- Discovery track cards: ~0.4 opacity wrapper
+- YouTube button on discovery cards: 1.0 opacity (restored via a CSS rule scoped to the button)
+
+---
+
+## P6-007 — Update test suite for Phase 6 changes
+
+### Goal
+Add or update tests for: renamed CSS selectors, new empty-state text, loading-state overlay behavior, tile opacity distinction between local and discovery.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P6-004 through P6-006
+
+### Definition of done
+- All existing tests pass
+- New tests cover: empty state text, hint text presence, right-panel empty/loading state text, tile opacity distinction
+
+---
+
+## P6-008 — Phase 6 demo and manual test pass
+
+### Goal
+Run the full Phase 6 checklist.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P6-001 through P6-007
+
+### Definition of done
+- All Phase 6 acceptance criteria verified
+- Issues logged into Phase 6 correction backlog
+
+---
+
+## 13a. Phase 6 Correction Loop Backlog
+
+## P6C-001 — Phase 6 stabilization sign-off
+
+### Goal
+Confirm Phase 6 is stable and the Reasonic brand identity meets the acceptance criteria.
+
+### Dependencies
+- P6-008
+
+### Definition of done
+- Phase 6 exit criteria passed
+- Reasonic brand identity fully applied and verified
+
+---
+
 ## 12. Cross-Cutting Hardening Backlog
 
 ## X-001 — Add backend health checks beyond baseline

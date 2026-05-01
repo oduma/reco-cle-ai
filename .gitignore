@@ -6,7 +6,7 @@ secrets.local.json
 .claude/settings.local.json
 deploy
 linux/dist
-
+z-ai-comm
 
 # Optional local secret note files (avoid committing provider credentials)
 **/token.txt

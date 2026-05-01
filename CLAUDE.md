@@ -1,7 +1,9 @@
 # CLAUDE.md
 
 ## Project Summary
-This repository contains the **Personal Music Discovery Web App**.
+This repository contains **Reasonic** — a Personal Music Discovery Web App.
+
+> *The music hiding in your mind.*
 
 The current intended architecture is:
 - **Frontend:** Angular + Angular Material SPA
@@ -14,6 +16,7 @@ The app is being built in phases:
 3. **Phase 3:** chat + web suggestions filtered/grounded using the local Clementine library
 4. **Phase 4:** local track actions — copy artist+title to clipboard, and add track(s) to Clementine playlist via `clementine -a <path>` CLI (cross-platform)
 5. **Phase 5:** full UI/UX revamp — split-pane layout (40/60), album art from Last.fm, 2×4 recommendation grid, redesigned model selector ("Inner Voice" / "Cosmic Voice"), Inter font, CSS color tokens
+6. **Phase 6:** Reasonic brand identity — product renamed to Reasonic, new logo/favicon, tagline "The music hiding in your mind", overhauled empty/loading states, unified magenta tile styling
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:

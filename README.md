@@ -1,6 +1,8 @@
-# RECO-CLE-AI
+# Reasonic
 
 Personal Music Discovery Web App built as an **Angular + Angular Material SPA** with an **ASP.NET Core Web API** backend.
+
+> *The music hiding in your mind.*
 
 The application is being developed incrementally so it can be tested continuously as it grows.
 
@@ -15,6 +17,15 @@ The roadmap is intentionally phased:
 
 3. **Phase 3 — Clementine local filtering**  
    Web suggestions are filtered or grounded against the local Clementine music library.
+
+4. **Phase 4 — Clementine player control**  
+   Copy artist+title to clipboard; add local tracks to the Clementine playlist via CLI.
+
+5. **Phase 5 — UI/UX revamp**  
+   Split-pane layout, album art from Last.fm, 2×4 recommendation grid, redesigned model selector, Inter font, CSS color tokens.
+
+6. **Phase 6 — Reasonic brand identity**  
+   Product renamed to Reasonic, new logo and favicon, tagline, overhauled empty/loading states, unified magenta tile styling.
 
 ## Repository Layout
 ```text

@@ -1,6 +1,6 @@
 # Documentation Index
 
-This folder contains the project documentation for the **Personal Music Discovery Web App**.
+This folder contains the project documentation for **Reasonic** (Personal Music Discovery Web App).
 
 The docs are intentionally split by purpose so both humans and GitHub Copilot can navigate them clearly.
 

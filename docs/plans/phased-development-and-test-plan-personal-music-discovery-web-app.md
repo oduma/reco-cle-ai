@@ -113,6 +113,16 @@ The app goes from a functional prototype to a polished, visually coherent produc
 
 ---
 
+## Phase 6 — Reasonic Brand Identity
+
+### Goal
+Apply the Reasonic brand: rename the product everywhere, introduce the new logo/favicon, add the tagline "The music hiding in your mind", overhaul the empty and loading states in both panes, and unify track tile styling with magenta outline/text (local = prominent, discovery = dimmed, YouTube button always prominent).
+
+### Main user value
+The app has a clear product identity. First impressions (tab title, header, empty states) communicate brand personality. The tile styling visually communicates the difference between locally-owned tracks and fresh discoveries.
+
+---
+
 ## 4. Cross-Phase Working Rules
 
 These rules apply to **every phase**.
@@ -802,6 +812,24 @@ At the end of each phase:
 - frontend component test: action icons correct per tile type (YouTube top-right / Clementine top-right / copy bottom-left)
 - frontend component test: model selector shows correct labels and active state
 
+## Phase 6
+
+### Focus
+- Reasonic name appears in browser tab and header
+- New logo/favicon render correctly; old mainimage.png removed
+- Tagline visible in header
+- Empty chat state shows muted logo and updated texts; hint is random from trylines.txt
+- Right-panel empty state text updated
+- Right-panel loading state overlays empty state text correctly
+- All track tiles have magenta border and text; local = full opacity, discovery = dimmed except YouTube button
+- All Phase 1–5 behaviors still pass
+
+### Minimum tests
+- frontend component test: empty chat state text "What does your mind sound like today?"
+- frontend component test: hint element present in empty state
+- frontend component test: right-panel shows loading phrase when loading and no suggestions yet
+- frontend component test: local tile has full opacity; discovery tile has reduced opacity wrapper; YouTube button unaffected
+
 ---
 
 ## 13. Recommended Definition of Done Per Phase
@@ -833,6 +861,9 @@ A phase is done only when all of the following are true:
 
 ## Phase 5
 **Deliverable:** Full UI/UX revamp — split-pane layout, album art from Last.fm, recommendation grid, redesigned model selector, new color and typography system
+
+## Phase 6
+**Deliverable:** Reasonic brand identity — renamed product, new logo/favicon, tagline, overhauled empty/loading states, unified magenta tile styling
 
 ## Correction model
 After each phase:

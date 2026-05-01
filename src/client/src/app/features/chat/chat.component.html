@@ -1,8 +1,11 @@
 <div class="page-shell">
 
   <header class="chat-header">
-    <img src="mainimage.png" alt="" aria-hidden="true" class="header-logo" />
-    <span class="chat-title">Music Discovery</span>
+    <img src="logo.png" alt="Reasonic" class="header-logo" />
+    <div class="chat-title-group">
+      <span class="chat-title">Reasonic</span>
+      <p class="chat-tagline">The music hiding in your mind</p>
+    </div>
     <mat-button-toggle-group
       class="provider-toggle"
       [value]="provider()"
@@ -32,9 +35,11 @@
       <div class="message-list" #messageList>
         @if (messages().length === 0 && !loading()) {
           <div class="empty-state">
-            <mat-icon class="empty-icon" aria-hidden="true">headphones</mat-icon>
-            <p class="empty-prompt">Ask me anything about music.</p>
-            <p class="empty-hint">Try: "Recommend some melancholic jazz from the 60s"</p>
+            <img src="logo.png" class="empty-logo" aria-hidden="true" alt="" />
+            <p class="empty-prompt">What does your mind sound like today?</p>
+            @if (tryLineHint()) {
+              <p class="empty-hint">{{ tryLineHint() }}</p>
+            }
           </div>
         }
 
@@ -73,6 +78,8 @@
             [value]="prompt()"
             (input)="updatePrompt($event)"
             (keydown)="onKeydown($event)"
+            (focus)="onFocus($event)"
+            (blur)="onBlur()"
             [disabled]="loading()"
             placeholder="e.g. Recommend some melancholic jazz from the 60s"
             aria-label="Music prompt"
@@ -102,7 +109,11 @@
       } @else {
         <div class="reco-empty-state">
           <mat-icon aria-hidden="true">queue_music</mat-icon>
-          <p>Your recommendations will appear here</p>
+          @if (loading()) {
+            <p class="reco-loading-text" role="status" aria-live="polite">{{ loadingPhrase() }}</p>
+          } @else {
+            <p>This is where your mind's music will take shape.</p>
+          }
         </div>
       }
     </section>

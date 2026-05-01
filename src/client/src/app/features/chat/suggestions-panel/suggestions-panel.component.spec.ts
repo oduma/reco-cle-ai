@@ -137,4 +137,28 @@ describe('SuggestionsPanelComponent', () => {
     const el: HTMLElement = fixture.nativeElement;
     expect(el.querySelector('.add-all-btn')).toBeNull();
   });
+
+  // ── Phase 6 ──────────────────────────────────────────────────────────────────
+
+  it('applies tile--local class to local track cards', async () => {
+    await setup({ suggestions: [LOCAL_TRACK] });
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.tile--local')).toBeTruthy();
+    expect(el.querySelector('.tile--discovery')).toBeNull();
+  });
+
+  it('applies tile--discovery class to discovery track cards', async () => {
+    await setup({ suggestions: [SAMPLE_TRACKS[0]] });
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.tile--discovery')).toBeTruthy();
+    expect(el.querySelector('.tile--local')).toBeNull();
+  });
+
+  it('shows YouTube link for discovery tracks', async () => {
+    await setup({ suggestions: [SAMPLE_TRACKS[0]] });
+    const el: HTMLElement = fixture.nativeElement;
+    const link = el.querySelector('.footer-action--link') as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    expect(link.textContent?.trim()).toContain('YouTube');
+  });
 });

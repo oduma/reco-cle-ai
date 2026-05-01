@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideZonelessChangeDetection } from '@angular/core';
+import { vi } from 'vitest';
 import { ChatComponent } from './chat.component';
 import { RecommendationService, RecommendationResponse } from '../../core/services/recommendation.service';
 
@@ -34,6 +35,16 @@ describe('ChatComponent', () => {
   let fixture: ComponentFixture<ChatComponent>;
   let httpMock: HttpTestingController;
 
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(
+        'Try: "I have a glass of champagne in one hand and a book in the other. Turn on the music."\n' +
+        'Try: "The lights are low, and I\'m reading. Match my mood."\n',
+      ),
+    }));
+  });
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ChatComponent],
@@ -52,7 +63,10 @@ describe('ChatComponent', () => {
     await fixture.whenStable();
   });
 
-  afterEach(() => httpMock.verify());
+  afterEach(() => {
+    httpMock.verify();
+    vi.unstubAllGlobals();
+  });
 
   function typeAndSend(text: string): void {
     const input = fixture.nativeElement.querySelector('input[matInput]') as HTMLInputElement;
@@ -171,5 +185,33 @@ describe('ChatComponent', () => {
     req.flush(RECO_OK);
     fixture.detectChanges();
     await fixture.whenStable();
+  });
+
+  // ── Phase 6 ──────────────────────────────────────────────────────────────────
+
+  it('shows updated empty state prompt text', () => {
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.empty-prompt')?.textContent?.trim())
+      .toBe('What does your mind sound like today?');
+  });
+
+  it('shows a try-line hint in the empty state when trylines file loads', async () => {
+    // Flush resolved-promise microtasks so ngOnInit's fetch chain settles
+    await new Promise(resolve => setTimeout(resolve, 0));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.empty-hint')).toBeTruthy();
+  });
+
+  it('shows loading phrase in right panel when loading before first send', async () => {
+    (fixture.componentInstance as any).loading.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const rightPanel = fixture.nativeElement.querySelector('.pane--reco') as HTMLElement;
+    expect(rightPanel.querySelector('.reco-loading-text')).toBeTruthy();
+    expect(rightPanel.querySelector('.reco-empty-state p:not(.reco-loading-text)')).toBeNull();
   });
 });
