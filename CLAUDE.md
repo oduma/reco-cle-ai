@@ -17,6 +17,7 @@ The app is being built in phases:
 4. **Phase 4:** local track actions — copy artist+title to clipboard, and add track(s) to Clementine playlist via `clementine -a <path>` CLI (cross-platform)
 5. **Phase 5:** full UI/UX revamp — split-pane layout (40/60), album art from Last.fm, 2×4 recommendation grid, redesigned model selector ("Inner Voice" / "Cosmic Voice"), Inter font, CSS color tokens
 6. **Phase 6:** Reasonic brand identity — product renamed to Reasonic, new logo/favicon, tagline "The music hiding in your mind", overhauled empty/loading states, unified magenta tile styling
+7. **Phase 7:** Dual Inner Voice models — "Inner Whisper" (llama3.1:8b) and "Inner Shout" (gemma4:e4b) selectable via a 3-button toggle; `OLLAMA_MODEL` replaced by `OLLAMA_WHISPER_MODEL` and `OLLAMA_SHOUT_MODEL`
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:
@@ -91,7 +92,8 @@ Use these locations as the primary sources of truth:
 - `GEMINI_MODEL`
 - `GEMINI_BASE_URL`
 - `OLLAMA_BASE_URL`
-- `OLLAMA_MODEL`
+- `OLLAMA_WHISPER_MODEL` — model tag for "Inner Whisper" (default: `llama3.1:8b`); replaces `OLLAMA_MODEL`
+- `OLLAMA_SHOUT_MODEL` — model tag for "Inner Shout" (default: `gemma4:e4b`)
 - `CLEMENTINE_DB_PATH`
 - `CLEMENTINE_MATCH_THRESHOLD`
 - `RECOMMENDATION_MIN_TRACKS`

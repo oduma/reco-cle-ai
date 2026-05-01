@@ -33,9 +33,9 @@
   <div class="tile-info">
     <span class="tile-title">{{ suggestion().title }}</span>
     <span class="tile-artist">{{ suggestion().artist }}</span>
-    @if (suggestion().album) {
-      <span class="tile-album">{{ suggestion().album }}</span>
-    }
+    <span class="tile-album" [style.visibility]="suggestion().album ? 'visible' : 'hidden'">
+      {{ suggestion().album || '&nbsp;' }}
+    </span>
   </div>
 
   <!-- Footer actions -->
@@ -59,7 +59,7 @@
         (click)="addToClementine(); $event.stopPropagation()"
         [disabled]="addingToPlaylist()"
         [attr.aria-label]="'Add ' + suggestion().artist + ' – ' + suggestion().title + ' to Clementine playlist'">
-        <img src="/icons/clementine.svg" class="footer-icon" alt="" aria-hidden="true" />
+        <img src="/icons/clementine_addmore.png" class="footer-icon" alt="" aria-hidden="true" />
       </button>
     }
   </div>

@@ -58,14 +58,17 @@
 // ── Add-all button ────────────────────────────────────────────────────────────
 
 .add-all-btn {
+  --mat-button-outlined-label-text-color: var(--reco-accent);
+  --mat-button-outlined-outline-color: var(--reco-accent);
+
   font-family: var(--reco-font);
   font-size: 0.72rem;
   font-weight: 500;
   height: 28px;
   line-height: 28px;
   padding: 0 10px;
-  color: var(--reco-primary);
-  border-color: var(--reco-primary) !important;
+  color: var(--reco-accent);
+  border-color: var(--reco-accent) !important;
 
   .add-all-icon {
     width: 15px;

@@ -123,6 +123,16 @@ The app has a clear product identity. First impressions (tab title, header, empt
 
 ---
 
+## Phase 7 — Dual Inner Voice Models
+
+### Goal
+Expose two local Ollama models through a 3-button toggle: "Inner Whisper" (llama3.1:8b, thoughtful/detailed), "Inner Shout" (gemma4:e4b, bold/fast), and "Cosmic Voice" (Gemini). The backend routes each provider value to the correct model. `OLLAMA_MODEL` is retired in favour of `OLLAMA_WHISPER_MODEL` and `OLLAMA_SHOUT_MODEL`.
+
+### Main user value
+Users can choose the personality and speed of the local AI voice. Inner Whisper gives careful, nuanced recommendations; Inner Shout gives bold, fast picks.
+
+---
+
 ## 4. Cross-Phase Working Rules
 
 These rules apply to **every phase**.
@@ -864,6 +874,9 @@ A phase is done only when all of the following are true:
 
 ## Phase 6
 **Deliverable:** Reasonic brand identity — renamed product, new logo/favicon, tagline, overhauled empty/loading states, unified magenta tile styling
+
+## Phase 7
+**Deliverable:** Dual Inner Voice models — "Inner Whisper" (llama3.1:8b) and "Inner Shout" (gemma4:e4b) selectable from a 3-button toggle alongside Cosmic Voice (Gemini)
 
 ## Correction model
 After each phase:

@@ -11,10 +11,13 @@
       [value]="provider()"
       (change)="setProvider($event.value)"
       aria-label="AI provider">
-      <mat-button-toggle value="local" aria-label="Use local Ollama model">
-        Inner Voice
+      <mat-button-toggle value="inner-whisper" aria-label="Use local llama model (Inner Whisper)">
+        Inner Whisper
       </mat-button-toggle>
-      <mat-button-toggle value="gemini" aria-label="Use Gemini cloud model">
+      <mat-button-toggle value="inner-shout" aria-label="Use local Gemma model (Inner Shout)">
+        Inner Shout
+      </mat-button-toggle>
+      <mat-button-toggle value="gemini" aria-label="Use Gemini cloud model (Cosmic Voice)">
         <img src="/icons/gemini.svg" class="provider-icon" alt="" aria-hidden="true" />
         Cosmic Voice
       </mat-button-toggle>
@@ -71,8 +74,8 @@
       </div>
 
       <div class="input-area">
-        <mat-form-field class="prompt-field" appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Ask about music…</mat-label>
+        <mat-form-field class="prompt-field" [class.prompt-field--hint]="isHintPreview()" appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Speak your mind if you want to hear me</mat-label>
           <input
             matInput
             [value]="prompt()"
@@ -88,7 +91,7 @@
         <button
           mat-fab
           (click)="send()"
-          [disabled]="!prompt().trim() || loading()"
+          [disabled]="!prompt().trim() || loading() || isHintPreview()"
           aria-label="Send message"
         >
           <mat-icon>send</mat-icon>

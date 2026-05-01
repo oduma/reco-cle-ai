@@ -78,10 +78,15 @@ GEMINI_BASE_URL
 ## 4.2 Ollama (local LLM)
 ```text
 OLLAMA_BASE_URL
-OLLAMA_MODEL
+OLLAMA_WHISPER_MODEL
+OLLAMA_SHOUT_MODEL
 ```
 
 No secret is required for Ollama — it runs locally and has no API key.
+
+`OLLAMA_WHISPER_MODEL` selects the model used for "Inner Whisper" (default: `llama3.1:8b`).
+`OLLAMA_SHOUT_MODEL` selects the model used for "Inner Shout" (default: `gemma4:e4b`).
+`OLLAMA_MODEL` is retired as of Phase 7.
 
 ## 4.3 Clementine DB access
 ```text
@@ -148,7 +153,8 @@ GEMINI_BASE_URL=
 
 # Local LLM (optional — no key required)
 OLLAMA_BASE_URL=
-OLLAMA_MODEL=
+OLLAMA_WHISPER_MODEL=
+OLLAMA_SHOUT_MODEL=
 
 # Clementine
 CLEMENTINE_DB_PATH=

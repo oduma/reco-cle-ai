@@ -43,6 +43,7 @@ public class AlbumArtEnrichmentTests
         return new RecommendationOrchestrationService(
             gemini, ollama, clementine, cache, lastFm,
             Options.Create(new ClementineOptions()),
+            Options.Create(new OllamaOptions()),
             NullLogger<RecommendationOrchestrationService>.Instance);
     }
 

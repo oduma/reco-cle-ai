@@ -187,6 +187,17 @@ describe('ChatComponent', () => {
     await fixture.whenStable();
   });
 
+  // ── Phase 7 ──────────────────────────────────────────────────────────────────
+
+  it('renders three provider toggle buttons', () => {
+    const buttons = fixture.nativeElement.querySelectorAll('mat-button-toggle');
+    expect(buttons.length).toBe(3);
+    const labels = Array.from(buttons).map((b: any) => b.textContent?.trim());
+    expect(labels).toContain('Inner Whisper');
+    expect(labels).toContain('Inner Shout');
+    expect(labels.some((l: any) => l?.includes('Cosmic Voice'))).toBe(true);
+  });
+
   // ── Phase 6 ──────────────────────────────────────────────────────────────────
 
   it('shows updated empty state prompt text', () => {

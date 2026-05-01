@@ -8,6 +8,7 @@ import {
   RecommendationService,
   ConversationTurn,
   TrackSuggestion,
+  Provider,
 } from '../../core/services/recommendation.service';
 import { SuggestionsPanelComponent } from './suggestions-panel/suggestions-panel.component';
 import { BoldMarkdownPipe } from '../../core/pipes/bold-markdown.pipe';
@@ -75,14 +76,14 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   protected loadingPhrase = signal(LOADING_PHRASES[0]);
   protected tryLineHint = signal('');
 
-  protected provider = signal<'gemini' | 'local'>(
-    (localStorage.getItem(PROVIDER_KEY) as 'gemini' | 'local') ?? 'gemini'
+  protected provider = signal<Provider>(
+    (localStorage.getItem(PROVIDER_KEY) as Provider) ?? 'gemini'
   );
   protected usedFallback = signal(false);
 
   private history: ConversationTurn[] = [];
   private shouldScroll = false;
-  private loadingInterval: ReturnType<typeof setInterval> | null = null;
+  private typewriterTimeout: ReturnType<typeof setTimeout> | null = null;
   private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Prompt history (terminal-style up/down navigation)
@@ -91,20 +92,14 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   private historyIndex = -1;
   private currentDraft = '';
 
-  private isHintPreview = false;
+  protected isHintPreview = signal(false);
 
   constructor(private recommendationService: RecommendationService) {
     effect(() => {
       if (this.loading()) {
-        this.loadingPhrase.set(this.randomPhrase());
-        this.loadingInterval = setInterval(() => {
-          this.loadingPhrase.set(this.randomPhrase());
-        }, 1000);
+        this.typewriterStart(this.randomPhrase());
       } else {
-        if (this.loadingInterval !== null) {
-          clearInterval(this.loadingInterval);
-          this.loadingInterval = null;
-        }
+        this.typewriterStop();
       }
     });
   }
@@ -123,7 +118,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.loadingInterval !== null) clearInterval(this.loadingInterval);
+    this.typewriterStop();
     if (this.fallbackTimer !== null) clearTimeout(this.fallbackTimer);
   }
 
@@ -134,7 +129,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     }
   }
 
-  protected setProvider(value: 'gemini' | 'local'): void {
+  protected setProvider(value: Provider): void {
     this.provider.set(value);
     localStorage.setItem(PROVIDER_KEY, value);
   }
@@ -206,8 +201,8 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
       if (this.promptHistory.length === 0) return;
       event.preventDefault();
       if (this.historyIndex === -1) {
-        this.currentDraft = this.isHintPreview ? '' : this.prompt();
-        this.isHintPreview = false;
+        this.currentDraft = this.isHintPreview() ? '' : this.prompt();
+        this.isHintPreview.set(false);
       }
       this.historyIndex = this.historyIndex === -1
         ? this.promptHistory.length - 1
@@ -233,23 +228,64 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   protected onFocus(event: FocusEvent): void {
     if (!this.prompt().trim() && this.tryLineHint()) {
       this.prompt.set(this.tryLineHint());
-      this.isHintPreview = true;
-      const input = event.target as HTMLInputElement;
-      setTimeout(() => input.select(), 0);
+      this.isHintPreview.set(true);
     }
   }
 
   protected onBlur(): void {
-    if (this.isHintPreview) {
+    if (this.isHintPreview()) {
       this.prompt.set('');
-      this.isHintPreview = false;
+      this.isHintPreview.set(false);
     }
   }
 
   protected updatePrompt(event: Event): void {
     this.historyIndex = -1;
-    this.isHintPreview = false;
-    this.prompt.set((event.target as HTMLInputElement).value);
+    const inputEl = event.target as HTMLInputElement;
+
+    if (this.isHintPreview()) {
+      const ie = event as InputEvent;
+      const inserted = ie.inputType?.startsWith('insert') ? (ie.data ?? '') : '';
+      if (inserted) {
+        this.isHintPreview.set(false);
+        this.prompt.set(inserted);
+        inputEl.value = inserted;
+      } else {
+        // backspace/delete on hint — restore hint unchanged
+        inputEl.value = this.tryLineHint();
+      }
+      return;
+    }
+
+    const value = inputEl.value;
+    if (value === '' && this.tryLineHint()) {
+      this.prompt.set(this.tryLineHint());
+      this.isHintPreview.set(true);
+    } else {
+      this.isHintPreview.set(false);
+      this.prompt.set(value);
+    }
+  }
+
+  private typewriterStart(phrase: string): void {
+    this.typewriterStop();
+    this.typeChar(phrase, 0);
+  }
+
+  private typeChar(phrase: string, i: number): void {
+    this.loadingPhrase.set(phrase.slice(0, i));
+    if (i < phrase.length) {
+      this.typewriterTimeout = setTimeout(() => this.typeChar(phrase, i + 1), 45);
+    } else {
+      this.typewriterTimeout = setTimeout(() => this.typewriterStart(this.randomPhrase()), 1000);
+    }
+  }
+
+  private typewriterStop(): void {
+    if (this.typewriterTimeout !== null) {
+      clearTimeout(this.typewriterTimeout);
+      this.typewriterTimeout = null;
+    }
   }
 
   private randomPhrase(): string {

@@ -1663,6 +1663,149 @@ Confirm Phase 6 is stable and the Reasonic brand identity meets the acceptance c
 
 ---
 
+## 14. Phase 7 — Dual Inner Voice Models Backlog
+
+## P7-001 — Add WhisperModel and ShoutModel to OllamaOptions
+
+### Goal
+Replace the single `OLLAMA_MODEL` env var with `OLLAMA_WHISPER_MODEL` (default `llama3.1:8b`) and `OLLAMA_SHOUT_MODEL` (default `gemma4:e4b`). Update `OllamaOptions` and `Program.cs` bindings accordingly.
+
+### Suggested owner / agent
+- .NET API Agent
+
+### Dependencies
+- P6C-001
+
+### Definition of done
+- `OllamaOptions` has `WhisperModel` and `ShoutModel` properties
+- Both are bound from env vars with documented defaults
+- `OLLAMA_MODEL` is no longer referenced in code or docs
+
+---
+
+## P7-002 — Pass model name at call time in OllamaGatewayService
+
+### Goal
+Update `OllamaGatewayService.GetMusicRecommendationAsync` to accept a `model` parameter rather than always reading from `_options.Model`. The orchestrator decides which model to pass per request.
+
+### Suggested owner / agent
+- .NET API Agent
+
+### Dependencies
+- P7-001
+
+### Definition of done
+- `GetMusicRecommendationAsync` signature includes a `string model` parameter
+- The `model` parameter is used in the Ollama request body instead of `_options.Model`
+
+---
+
+## P7-003 — Route inner-whisper / inner-shout to correct Ollama model
+
+### Goal
+Update `RecommendationOrchestrationService` to route `provider == "inner-whisper"` to `OllamaGatewayService` with `WhisperModel` and `provider == "inner-shout"` with `ShoutModel`.
+
+### Suggested owner / agent
+- .NET API Agent
+
+### Dependencies
+- P7-002
+
+### Definition of done
+- Both `inner-whisper` and `inner-shout` provider values result in correct Ollama calls with the right model tag
+- `local` provider value is no longer accepted (or gracefully mapped to `inner-whisper` for backward compatibility)
+
+---
+
+## P7-004 — Update recommendation request DTO and API validation
+
+### Goal
+Expand the allowed provider values in the request DTO from `{ "gemini", "local" }` to `{ "gemini", "inner-whisper", "inner-shout" }`.
+
+### Suggested owner / agent
+- .NET API Agent
+
+### Dependencies
+- P7-003
+
+### Definition of done
+- DTO validation accepts the three new values
+- Unknown provider values return a clear 400 error
+
+---
+
+## P7-005 — Update frontend provider type and 3-button toggle
+
+### Goal
+Expand the Angular provider type from `'gemini' | 'local'` to `'gemini' | 'inner-whisper' | 'inner-shout'`. Replace the 2-button toggle with a 3-button `mat-button-toggle-group`: Inner Whisper | Inner Shout | Cosmic Voice.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+
+### Dependencies
+- P7-004
+
+### Definition of done
+- Provider type updated throughout the frontend
+- Toggle shows three options with correct labels and icons
+- `localStorage` key stores and restores the correct 3-way value
+- Correct provider value is sent in the API request body
+
+---
+
+## P7-006 — Update test suite for Phase 7
+
+### Goal
+Update or add tests for: new provider values in API requests, new toggle option rendering, correct model routing in orchestration service.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- .NET API Agent
+
+### Dependencies
+- P7-005
+
+### Definition of done
+- All existing tests pass
+- New tests cover: 3-button toggle presence, `inner-whisper` / `inner-shout` provider values sent in requests, backend routing to correct model
+
+---
+
+## P7-007 — Phase 7 demo and manual test pass
+
+### Goal
+Verify both Inner Voice models respond correctly from the UI.
+
+### Suggested owner / agent
+- Angular Frontend Agent
+- .NET API Agent
+
+### Dependencies
+- P7-001 through P7-006
+
+### Definition of done
+- Selecting "Inner Whisper" sends requests using `llama3.1:8b`
+- Selecting "Inner Shout" sends requests using `gemma4:e4b`
+- Selecting "Cosmic Voice" still uses Gemini
+- All three paths return valid recommendations
+
+---
+
+## 14a. Phase 7 Correction Loop Backlog
+
+## P7C-001 — Phase 7 stabilization sign-off
+
+### Goal
+Confirm Phase 7 is stable and both local models work end-to-end.
+
+### Dependencies
+- P7-007
+
+### Definition of done
+- Phase 7 exit criteria passed
+
+---
+
 ## 12. Cross-Cutting Hardening Backlog
 
 ## X-001 — Add backend health checks beyond baseline

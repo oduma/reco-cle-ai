@@ -37,6 +37,20 @@ describe('RecommendationService', () => {
     req.flush(EMPTY_RESPONSE);
   });
 
+  it('sends inner-whisper provider value when specified', () => {
+    service.getRecommendations('jazz', [], 'inner-whisper').subscribe();
+    const req = httpMock.expectOne('/api/recommendations');
+    expect(req.request.body.provider).toBe('inner-whisper');
+    req.flush(EMPTY_RESPONSE);
+  });
+
+  it('sends inner-shout provider value when specified', () => {
+    service.getRecommendations('jazz', [], 'inner-shout').subscribe();
+    const req = httpMock.expectOne('/api/recommendations');
+    expect(req.request.body.provider).toBe('inner-shout');
+    req.flush(EMPTY_RESPONSE);
+  });
+
   it('returns narrative, suggestions and updated history from the API', () => {
     const mockResponse: RecommendationResponse = {
       narrative: 'Try Blue in Green by Miles Davis.',

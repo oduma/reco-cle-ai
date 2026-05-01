@@ -45,9 +45,16 @@ public class OllamaGatewayService : IOllamaGatewayService
         "  ]\n" +
         "}";
 
+    public Task<MusicRecommendationResult> GetMusicRecommendationAsync(
+        string prompt,
+        IReadOnlyList<ConversationTurn> history,
+        CancellationToken cancellationToken = default) =>
+        GetMusicRecommendationAsync(prompt, history, _options.WhisperModel, cancellationToken);
+
     public async Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
         IReadOnlyList<ConversationTurn> history,
+        string model,
         CancellationToken cancellationToken = default)
     {
         var url = $"{_options.BaseUrl}/v1/chat/completions";
@@ -57,7 +64,6 @@ public class OllamaGatewayService : IOllamaGatewayService
             new { role = "system", content = BuildSystemPrompt() }
         };
 
-        // Ollama/OpenAI uses "assistant" where Gemini uses "model"
         foreach (var turn in history)
         {
             var role = turn.Role == "model" ? "assistant" : turn.Role;
@@ -68,7 +74,7 @@ public class OllamaGatewayService : IOllamaGatewayService
 
         var requestBody = new
         {
-            model = _options.Model,
+            model,
             messages,
             stream = false,
             response_format = new { type = "json_object" }
@@ -76,7 +82,7 @@ public class OllamaGatewayService : IOllamaGatewayService
 
         _logger.LogInformation(
             "[Ollama/Reco] → POST {Url} | model: {Model} | history turns: {HistoryCount} | prompt: {Length} chars",
-            url, _options.Model, history.Count, prompt.Length);
+            url, model, history.Count, prompt.Length);
 
         var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
 

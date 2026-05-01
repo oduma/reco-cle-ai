@@ -14,11 +14,12 @@
   }
 
   &--discovery {
+    border-color: rgba(200, 0, 107, 0.28);
     box-shadow: 0 0 0 0 var(--reco-accent-dim);
 
     .tile-art,
     .tile-info {
-      opacity: 0.4;
+      opacity: 0.22;
     }
   }
 

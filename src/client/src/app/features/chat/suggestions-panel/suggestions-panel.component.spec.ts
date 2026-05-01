@@ -82,10 +82,12 @@ describe('SuggestionsPanelComponent', () => {
     expect(el.querySelector('.tile-album')?.textContent?.trim()).toBe('Kind of Blue');
   });
 
-  it('does not render album element when album is null', async () => {
+  it('hides album element when album is null', async () => {
     await setup({ suggestions: [SAMPLE_TRACKS[1]] });
     const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('.tile-album')).toBeNull();
+    const albumEl = el.querySelector('.tile-album') as HTMLElement | null;
+    expect(albumEl).toBeTruthy();
+    expect(albumEl?.style.visibility).toBe('hidden');
   });
 
   it('shows copy button for local tracks', async () => {

@@ -3,6 +3,11 @@ using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 using Reco.Api.Models;
 
+// Provider values accepted from the frontend
+// "gemini"        → Gemini cloud
+// "inner-whisper" → Ollama WhisperModel (llama3.1:8b)
+// "inner-shout"   → Ollama ShoutModel   (gemma4:e4b)
+
 namespace Reco.Api.Services;
 
 public class RecommendationOrchestrationService : IRecommendationOrchestrationService
@@ -13,6 +18,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
     private readonly ISuggestionCacheService _suggestionCache;
     private readonly ILastFmGatewayService _lastFm;
     private readonly ClementineOptions _clementineOptions;
+    private readonly OllamaOptions _ollamaOptions;
     private readonly ILogger<RecommendationOrchestrationService> _logger;
 
     public RecommendationOrchestrationService(
@@ -22,6 +28,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         ISuggestionCacheService suggestionCache,
         ILastFmGatewayService lastFm,
         IOptions<ClementineOptions> clementineOptions,
+        IOptions<OllamaOptions> ollamaOptions,
         ILogger<RecommendationOrchestrationService> logger)
     {
         _geminiGateway = geminiGateway;
@@ -30,6 +37,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         _suggestionCache = suggestionCache;
         _lastFm = lastFm;
         _clementineOptions = clementineOptions.Value;
+        _ollamaOptions = ollamaOptions.Value;
         _logger = logger;
     }
 
@@ -39,11 +47,14 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         string? preferredProvider = null,
         CancellationToken cancellationToken = default)
     {
-        var useLocal = string.Equals(preferredProvider, "local", StringComparison.OrdinalIgnoreCase);
+        var isInnerWhisper = string.Equals(preferredProvider, "inner-whisper", StringComparison.OrdinalIgnoreCase);
+        var isInnerShout   = string.Equals(preferredProvider, "inner-shout",   StringComparison.OrdinalIgnoreCase);
+        var useLocal = isInnerWhisper || isInnerShout;
+        var ollamaModel = isInnerShout ? _ollamaOptions.ShoutModel : _ollamaOptions.WhisperModel;
 
         _logger.LogInformation(
             "[Recommendations] Requesting | provider: {Provider} | history turns: {HistoryCount} | prompt: {Length} chars",
-            useLocal ? "local" : "gemini", history.Count, prompt.Length);
+            useLocal ? ollamaModel : "gemini", history.Count, prompt.Length);
 
         MusicRecommendationResult result;
         string providerUsed;
@@ -53,8 +64,8 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         {
             try
             {
-                result = await _ollamaGateway.GetMusicRecommendationAsync(prompt, history, cancellationToken);
-                providerUsed = "local";
+                result = await _ollamaGateway.GetMusicRecommendationAsync(prompt, history, ollamaModel, cancellationToken);
+                providerUsed = isInnerShout ? "inner-shout" : "inner-whisper";
             }
             catch (Exception ex) when (IsOllamaFailure(ex))
             {
@@ -85,7 +96,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         var localToReturn = (freshLocal.Count == 0 && localTracks.Count > 0) ? localTracks : freshLocal;
 
         _logger.LogInformation(
-            "[Recommendations] Provider: {Provider}{Fallback} | Gemini: {Total} | local: {Local} | discovery: {Discovery} | after cache: {Fresh}{Override}",
+            "[Recommendations] Provider: {Provider}{Fallback} | tracks: {Total} | local: {Local} | discovery: {Discovery} | after cache: {Fresh}{Override}",
             providerUsed,
             usedFallback ? " (fallback)" : string.Empty,
             result.Tracks.Count,

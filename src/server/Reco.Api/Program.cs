@@ -38,8 +38,11 @@ builder.Services.Configure<OllamaOptions>(options =>
     var baseUrl = builder.Configuration["OLLAMA_BASE_URL"];
     if (!string.IsNullOrWhiteSpace(baseUrl)) options.BaseUrl = baseUrl;
 
-    var model = builder.Configuration["OLLAMA_MODEL"];
-    if (!string.IsNullOrWhiteSpace(model)) options.Model = model;
+    var whisperModel = builder.Configuration["OLLAMA_WHISPER_MODEL"];
+    if (!string.IsNullOrWhiteSpace(whisperModel)) options.WhisperModel = whisperModel;
+
+    var shoutModel = builder.Configuration["OLLAMA_SHOUT_MODEL"];
+    if (!string.IsNullOrWhiteSpace(shoutModel)) options.ShoutModel = shoutModel;
 });
 
 builder.Services.Configure<ClementineOptions>(options =>

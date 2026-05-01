@@ -16,10 +16,12 @@ export interface TrackSuggestion {
   albumArtUrl?: string | null;
 }
 
+export type Provider = 'gemini' | 'inner-whisper' | 'inner-shout';
+
 export interface RecommendationRequest {
   prompt: string;
   history: ConversationTurn[];
-  provider: 'gemini' | 'local';
+  provider: Provider;
 }
 
 export interface RecommendationResponse {
@@ -38,7 +40,7 @@ export class RecommendationService {
   getRecommendations(
     prompt: string,
     history: ConversationTurn[],
-    provider: 'gemini' | 'local' = 'gemini',
+    provider: Provider = 'gemini',
   ): Observable<RecommendationResponse> {
     return this.http.post<RecommendationResponse>('/api/recommendations', {
       prompt,
