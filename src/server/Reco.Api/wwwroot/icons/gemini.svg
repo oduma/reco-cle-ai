@@ -1,0 +1,20 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="gemini-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#4285F4"/>
+      <stop offset="50%"  stop-color="#9C27B0"/>
+      <stop offset="100%" stop-color="#00BCD4"/>
+    </linearGradient>
+  </defs>
+  <!-- 4-pointed star / sparkle -->
+  <path d="M12 2
+           C12 2 13 8 16 10
+           C19 12 22 12 22 12
+           C22 12 19 12 16 14
+           C13 16 12 22 12 22
+           C12 22 11 16 8 14
+           C5 12 2 12 2 12
+           C2 12 5 12 8 10
+           C11 8 12 2 12 2Z"
+        fill="url(#gemini-grad)"/>
+</svg>
