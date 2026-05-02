@@ -1,0 +1,65 @@
+<h2 mat-dialog-title class="settings-title">
+  <mat-icon aria-hidden="true">settings</mat-icon>
+  Settings
+</h2>
+
+<mat-dialog-content class="settings-content">
+  @if (loading()) {
+    <div class="settings-loading" role="status">
+      <mat-spinner diameter="36"></mat-spinner>
+      <span>Loading settings…</span>
+    </div>
+  } @else {
+    <form [formGroup]="form" class="settings-form" (submit)="$event.preventDefault()">
+      @for (group of groups; track group.title) {
+        <section class="settings-group">
+          <h3 class="settings-group-title">{{ group.title }}</h3>
+          @for (field of group.fields; track field.key) {
+            <mat-form-field appearance="outline" class="settings-field">
+              <mat-label>{{ field.label }}</mat-label>
+              <input
+                matInput
+                [type]="fieldType(field)"
+                [formControlName]="field.key"
+                [placeholder]="field.placeholder ?? ''"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              @if (field.type === 'password') {
+                <button
+                  matSuffix
+                  mat-icon-button
+                  type="button"
+                  [matTooltip]="isRevealed(field.key) ? 'Hide' : 'Show'"
+                  (click)="toggleReveal(field.key)"
+                  [attr.aria-label]="isRevealed(field.key) ? 'Hide value' : 'Show value'">
+                  <mat-icon>{{ isRevealed(field.key) ? 'visibility_off' : 'visibility' }}</mat-icon>
+                </button>
+              }
+              <mat-hint>Leave blank to use environment variable or default</mat-hint>
+            </mat-form-field>
+          }
+        </section>
+      }
+    </form>
+  }
+
+  @if (saveError()) {
+    <p class="settings-error" role="alert">{{ saveError() }}</p>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="settings-actions">
+  <button mat-button type="button" (click)="cancel()" [disabled]="saving()">Cancel</button>
+  <button
+    mat-flat-button
+    color="primary"
+    type="button"
+    (click)="save()"
+    [disabled]="loading() || saving()">
+    @if (saving()) {
+      <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+    }
+    Save
+  </button>
+</mat-dialog-actions>

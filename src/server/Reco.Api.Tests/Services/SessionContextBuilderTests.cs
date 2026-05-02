@@ -1,6 +1,4 @@
-using Microsoft.Extensions.Options;
 using NSubstitute;
-using Reco.Api.Configuration;
 using Reco.Api.Models;
 using Reco.Api.Services;
 
@@ -8,16 +6,10 @@ namespace Reco.Api.Tests.Services;
 
 public class SessionContextBuilderTests
 {
-    private static readonly SessionMemoryOptions DefaultOptions = new()
-    {
-        MemorySize = 25,
-        DefaultTrackDurationSeconds = 210.0,
-    };
-
     private static SessionContextBuilder Build(
         IReadOnlyList<SessionEvent> events,
         MemoryStatus? memoryStatus = null,
-        SessionMemoryOptions? options = null)
+        double defaultTrackDuration = 210.0)
     {
         var session = Substitute.For<ISessionHistoryService>();
         session.GetActiveEventsAsync()
@@ -25,7 +17,11 @@ public class SessionContextBuilderTests
         session.GetMemoryStatusAsync()
                .Returns(Task.FromResult(memoryStatus ?? new MemoryStatus(0, 25)));
 
-        return new SessionContextBuilder(session, Options.Create(options ?? DefaultOptions));
+        var settings = Substitute.For<IAppSettingsService>();
+        settings.GetDoubleAsync("SESSION_DEFAULT_TRACK_DURATION_SECONDS", Arg.Any<double>())
+                .Returns(Task.FromResult(defaultTrackDuration));
+
+        return new SessionContextBuilder(session, settings);
     }
 
     // ── Empty log ─────────────────────────────────────────────────────────
@@ -73,7 +69,7 @@ public class SessionContextBuilderTests
         var context = await Build(events).BuildAsync();
 
         Assert.Equal(2, context.History.Count);
-        Assert.Equal("model",                  context.History[1].Role);
+        Assert.Equal("model",                    context.History[1].Role);
         Assert.Equal("Here are some jazz picks", context.History[1].Text);
     }
 
@@ -260,8 +256,7 @@ public class SessionContextBuilderTests
             E("ai-reply",    at: aiTime,                content: "Here"),
             E("track-added", at: aiTime.AddSeconds(2),  artist: "Miles", title: "So What", duration: null));
 
-        var opts = new SessionMemoryOptions { DefaultTrackDurationSeconds = 300.0 };
-        var context = await Build(events, options: opts).BuildAsync();
+        var context = await Build(events, defaultTrackDuration: 300.0).BuildAsync();
 
         Assert.Contains("I may still be listening to those tracks.", context.Preamble);
     }

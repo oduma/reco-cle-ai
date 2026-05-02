@@ -1,9 +1,10 @@
 import { Component, computed, signal, ViewChild, ElementRef, AfterViewChecked, AfterViewInit, OnDestroy, OnInit, effect } from '@angular/core';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom, retry, throwError, timer } from 'rxjs';
 import {
@@ -12,6 +13,7 @@ import {
   Provider,
 } from '../../core/services/recommendation.service';
 import { SessionService } from '../../core/services/session.service';
+import { SettingsModalComponent } from '../settings/settings-modal.component';
 import { SuggestionsPanelComponent } from './suggestions-panel/suggestions-panel.component';
 import { BoldMarkdownPipe } from '../../core/pipes/bold-markdown.pipe';
 
@@ -52,11 +54,12 @@ const LOADING_PHRASES = [
   selector: 'app-chat',
   standalone: true,
   imports: [
-    MatFormFieldModule,
-    MatInputModule,
     MatButtonModule,
     MatButtonToggleModule,
+    MatDialogModule,
+    MatFormFieldModule,
     MatIconModule,
+    MatInputModule,
     MatTooltipModule,
     SuggestionsPanelComponent,
     BoldMarkdownPipe,
@@ -116,6 +119,7 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
   constructor(
     private recommendationService: RecommendationService,
     private sessionService: SessionService,
+    private dialog: MatDialog,
   ) {
     effect(() => {
       if (this.loading()) {
@@ -186,6 +190,13 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
         this.refreshMemory();
       },
       error: () => {},
+    });
+  }
+
+  protected openSettings(): void {
+    this.dialog.open(SettingsModalComponent, {
+      disableClose: false,
+      autoFocus: false,
     });
   }
 

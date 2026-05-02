@@ -1,15 +1,16 @@
 using System.Diagnostics;
-using Microsoft.Extensions.Options;
-using Reco.Api.Configuration;
+using System.Runtime.InteropServices;
 
 namespace Reco.Api.Services;
 
-public class ClementineLauncherService(IOptions<ClementineLauncherOptions> options, ILogger<ClementineLauncherService> logger)
+public class ClementineLauncherService(IAppSettingsService settings, ILogger<ClementineLauncherService> logger)
     : IClementineLauncherService
 {
-    private readonly ClementineLauncherOptions _options = options.Value;
+    private static readonly string DefaultExePath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+        ? @"C:\Program Files (x86)\Clementine\clementine.exe"
+        : "clementine";
 
-    public Task<(bool success, string? error)> AddToPlaylistAsync(IEnumerable<string> filePaths)
+    public async Task<(bool success, string? error)> AddToPlaylistAsync(IEnumerable<string> filePaths)
     {
         var localPaths = new List<string>();
 
@@ -23,39 +24,39 @@ public class ClementineLauncherService(IOptions<ClementineLauncherOptions> optio
                 catch (UriFormatException ex)
                 {
                     logger.LogWarning(ex, "Could not parse file URI: {FilePath}", filePath);
-                    return Task.FromResult<(bool, string?)>((false, $"Invalid file URI: {filePath}"));
+                    return (false, $"Invalid file URI: {filePath}");
                 }
             }
 
             if (!File.Exists(localPath))
             {
                 logger.LogWarning("Track file not found: {LocalPath}", localPath);
-                return Task.FromResult<(bool, string?)>((false, $"File not found: {localPath}"));
+                return (false, $"File not found: {localPath}");
             }
 
             localPaths.Add(localPath);
         }
 
         if (localPaths.Count == 0)
-            return Task.FromResult<(bool, string?)>((false, "No valid file paths provided."));
+            return (false, "No valid file paths provided.");
 
-        // When ExePath is a bare command name (Linux PATH resolution), skip file-exists check
-        if (Path.IsPathRooted(_options.ExePath) && !File.Exists(_options.ExePath))
+        var exePath = await settings.GetStringAsync("CLEMENTINE_EXE_PATH", DefaultExePath);
+
+        if (Path.IsPathRooted(exePath) && !File.Exists(exePath))
         {
-            logger.LogWarning("Clementine executable not found at: {ExePath}", _options.ExePath);
-            return Task.FromResult<(bool, string?)>((false, $"Clementine not found at: {_options.ExePath}"));
+            logger.LogWarning("Clementine executable not found at: {ExePath}", exePath);
+            return (false, $"Clementine not found at: {exePath}");
         }
 
         try
         {
             var psi = new ProcessStartInfo
             {
-                FileName = _options.ExePath,
+                FileName        = exePath,
                 UseShellExecute = false,
-                CreateNoWindow = true,
+                CreateNoWindow  = true,
             };
 
-            // ArgumentList handles proper quoting on both Windows and Linux
             foreach (var path in localPaths)
             {
                 psi.ArgumentList.Add("-a");
@@ -64,12 +65,12 @@ public class ClementineLauncherService(IOptions<ClementineLauncherOptions> optio
 
             Process.Start(psi);
             logger.LogInformation("Launched Clementine with {Count} track(s)", localPaths.Count);
-            return Task.FromResult<(bool, string?)>((true, null));
+            return (true, null);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to launch Clementine");
-            return Task.FromResult<(bool, string?)>((false, ex.Message));
+            return (false, ex.Message);
         }
     }
 }

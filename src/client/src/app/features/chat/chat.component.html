@@ -36,6 +36,15 @@
         <mat-icon>delete_sweep</mat-icon>
       </button>
     </div>
+
+    <button
+      mat-icon-button
+      class="settings-btn"
+      (click)="openSettings()"
+      matTooltip="Settings"
+      aria-label="Open settings">
+      <mat-icon>settings</mat-icon>
+    </button>
   </header>
 
   @if (usedFallback()) {

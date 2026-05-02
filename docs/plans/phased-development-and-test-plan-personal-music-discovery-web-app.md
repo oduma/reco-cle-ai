@@ -212,6 +212,34 @@ The AI's occasional busyness is handled gracefully and transparently rather than
 
 ---
 
+## Phase 11 — In-App Settings Panel
+
+### Goal
+Let the user configure the entire application from inside the UI, without ever editing a config file or environment variable. A gear icon button in the header opens a settings modal where every provider URL, API key, model name, file path, and numeric threshold can be viewed and changed. Settings are persisted in the app database and take effect on the next request — no server restart needed.
+
+### What changes
+- **`session_history.db` renamed to `reasonic.db`** — the database now owns more than session history; env var `SESSION_DB_PATH` renamed to `REASONIC_DB_PATH`
+- **`app_settings` table** added to `reasonic.db` — key/value store using flat env var names as keys; a missing row means "use env var / default"
+- **`IAppSettingsService`** — new singleton service that reads DB first, falls back to `IConfiguration` (env vars → `appsettings.json` → code defaults); replaces `IOptions<T>` in all gateway and feature services
+- **`GET /api/settings`** — returns all current effective settings
+- **`PUT /api/settings`** — upserts non-empty values; deletes rows for empty values (restoring env var fallback); invalidates the settings cache
+- **`SettingsModalComponent`** — standalone Angular component; reactive form; fields grouped by provider; API keys shown as password fields with show/hide toggle
+- **Gear button** added to `ChatComponent` header after the memory-bust button; opens the modal via `MatDialog`
+- **`appsettings.json` cleanup** — remove stale `Ollama:Model` key; remove machine-specific `Clementine:DbPath`; align `Gemini:Model` default to `gemini-2.5-pro` in both files
+- **Clementine DB** opened with `Mode=ReadOnly` (fix if not already)
+
+### Key design decisions
+- `REASONIC_DB_PATH` is the only variable that is **not** UI-configurable — the DB must exist before the settings table can be read
+- Blank field on save = erase the DB row; the env var / default becomes effective again
+- Settings take effect on the **next HTTP request** — no restart needed
+- All existing `Options` classes and their `Configure<T>()` registrations are removed once all consumers have been migrated to `IAppSettingsService`
+- No automatic migration from `session_history.db` to `reasonic.db`; existing installs start fresh
+
+### Main user value
+The user can tweak API keys, swap AI models, point to a different Clementine database, or adjust recommendation counts entirely from within the app. No SSH, no config files, no restarts.
+
+---
+
 ## 4. Cross-Phase Working Rules
 
 These rules apply to **every phase**.

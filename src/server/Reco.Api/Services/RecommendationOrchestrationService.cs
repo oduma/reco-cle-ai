@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Options;
-using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 using Reco.Api.Models;
 
@@ -19,8 +17,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
     private readonly ILastFmGatewayService _lastFm;
     private readonly ISessionContextBuilder _sessionContextBuilder;
     private readonly ISessionHistoryService _sessionHistory;
-    private readonly ClementineOptions _clementineOptions;
-    private readonly OllamaOptions _ollamaOptions;
+    private readonly IAppSettingsService _settings;
     private readonly ILogger<RecommendationOrchestrationService> _logger;
 
     public RecommendationOrchestrationService(
@@ -31,20 +28,18 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         ILastFmGatewayService lastFm,
         ISessionContextBuilder sessionContextBuilder,
         ISessionHistoryService sessionHistory,
-        IOptions<ClementineOptions> clementineOptions,
-        IOptions<OllamaOptions> ollamaOptions,
+        IAppSettingsService settings,
         ILogger<RecommendationOrchestrationService> logger)
     {
-        _geminiGateway = geminiGateway;
-        _ollamaGateway = ollamaGateway;
-        _clementine = clementine;
-        _suggestionCache = suggestionCache;
-        _lastFm = lastFm;
+        _geminiGateway        = geminiGateway;
+        _ollamaGateway        = ollamaGateway;
+        _clementine           = clementine;
+        _suggestionCache      = suggestionCache;
+        _lastFm               = lastFm;
         _sessionContextBuilder = sessionContextBuilder;
-        _sessionHistory = sessionHistory;
-        _clementineOptions = clementineOptions.Value;
-        _ollamaOptions = ollamaOptions.Value;
-        _logger = logger;
+        _sessionHistory       = sessionHistory;
+        _settings             = settings;
+        _logger               = logger;
     }
 
     public async Task<RecommendationResponse> GetRecommendationsAsync(
@@ -54,10 +49,12 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
     {
         var isInnerWhisper = string.Equals(preferredProvider, "inner-whisper", StringComparison.OrdinalIgnoreCase);
         var isInnerShout   = string.Equals(preferredProvider, "inner-shout",   StringComparison.OrdinalIgnoreCase);
-        var useLocal = isInnerWhisper || isInnerShout;
-        var ollamaModel = isInnerShout ? _ollamaOptions.ShoutModel : _ollamaOptions.WhisperModel;
+        var useLocal       = isInnerWhisper || isInnerShout;
 
-        // Build session context: conversation history + temporal preamble from SQLite log
+        var ollamaModel = isInnerShout
+            ? await _settings.GetStringAsync("OLLAMA_SHOUT_MODEL",   "gemma4:e4b")
+            : await _settings.GetStringAsync("OLLAMA_WHISPER_MODEL", "llama3.1:8b");
+
         var sessionContext = await _sessionContextBuilder.BuildAsync(cancellationToken);
         var enrichedPrompt = sessionContext.Preamble is not null
             ? $"{sessionContext.Preamble}\n\nMy question: {prompt}"
@@ -79,25 +76,24 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         {
             try
             {
-                result = await _ollamaGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, ollamaModel, cancellationToken);
+                result       = await _ollamaGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, ollamaModel, cancellationToken);
                 providerUsed = isInnerShout ? "inner-shout" : "inner-whisper";
             }
             catch (Exception ex) when (IsOllamaFailure(ex))
             {
                 _logger.LogWarning("[Recommendations] Ollama unavailable ({Reason}) — falling back to Gemini",
                     ex is TaskCanceledException ? "timeout" : "connection refused");
-                result = await _geminiGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, cancellationToken);
+                result       = await _geminiGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, cancellationToken);
                 providerUsed = "gemini";
                 usedFallback = true;
             }
         }
         else
         {
-            result = await _geminiGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, cancellationToken);
+            result       = await _geminiGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, cancellationToken);
             providerUsed = "gemini";
         }
 
-        // Log the exchange to the session history after a successful AI response
         await _sessionHistory.LogUserChatAsync(prompt, promptTimestamp);
         var aiReplyId = await _sessionHistory.LogAiReplyAsync(result.Narrative, DateTimeOffset.UtcNow);
 
@@ -111,7 +107,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         var localTracks     = annotatedTracks.Where(t => t.InLocalLibrary).ToList();
         var discoveryTracks = annotatedTracks.Where(t => !t.InLocalLibrary).ToList();
 
-        var freshLocal = _suggestionCache.ExcludeRecentlySuggested(localTracks);
+        var freshLocal    = _suggestionCache.ExcludeRecentlySuggested(localTracks);
         var localToReturn = (freshLocal.Count == 0 && localTracks.Count > 0) ? localTracks : freshLocal;
 
         _logger.LogInformation(
@@ -170,7 +166,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         try
         {
             var inventory = await _clementine.LoadInventoryAsync(cancellationToken);
-            var threshold = _clementineOptions.MatchThreshold;
+            var threshold = await _settings.GetDoubleAsync("CLEMENTINE_MATCH_THRESHOLD", 0.75);
 
             var annotated = suggestions
                 .Select(s =>

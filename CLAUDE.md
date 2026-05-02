@@ -21,6 +21,7 @@ The app is being built in phases:
 8. **Phase 8:** Fluent conversation memory — server-side SQLite session log recording user prompts, AI replies, and track interactions (Clementine adds + YouTube clicks); FIFO memory capped at 25 AI replies; AI context rebuilt from the log and enriched with a temporal preamble; all providers instructed to reference listening history in replies and recommendations; memory progress bar + bust button in UI
 9. **Phase 9:** History hydration & suggestion rewind — full conversation restored on page load; every AI bubble gains a rewind button (`history` icon) to swap the suggestions panel to that reply's tracks; active reply identity persisted in `session_state` table across refreshes
 10. **Phase 10:** Progressive retry & auto-focus — transparent 4-attempt retry on transient 502 errors (3/5/7/10 s delays) with a bold in-bubble notice; prompt input auto-focused on load and after each AI response/error
+11. **Phase 11:** In-app settings panel — gear button in header opens a modal where every provider URL, API key, model name, path, and threshold can be viewed and overwritten; settings persisted in `reasonic.db`; take effect on next request without restart; DB renamed from `session_history.db` to `reasonic.db`
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:
@@ -38,6 +39,8 @@ Use these locations as the primary sources of truth:
 - `docs/architecture/phase8-session-memory-design.md` — Phase 8 session memory: SQLite schema, FIFO eviction, preamble injection, API surface
 - `docs/architecture/phase9-history-hydration-design.md` — Phase 9 history hydration: session restore on load, rewind button, active reply persistence
 - `docs/architecture/phase10-progressive-retry-and-autofocus-design.md` — Phase 10 progressive retry (502 only, 4 attempts) and auto-focus design
+- `docs/architecture/phase11-settings-panel-design.md` — Phase 11 in-app settings panel: app_settings table, IAppSettingsService, service migration, API endpoints, modal design
+- `docs/architecture/environment-variables-and-configuration.md` — complete variable reference, recommended precedence order, and known config issues
 - `docs/architecture/angular-material-dotnet-api-architecture-best-practices.md`
 - `docs/architecture/logical-component-architecture-personal-music-discovery-engine.md`
 - `docs/architecture/query-execution-sequence-diagram-personal-music-discovery-engine.md`
@@ -94,26 +97,26 @@ Use these locations as the primary sources of truth:
 - Never put secrets in Angular/browser-delivered configuration.
 
 ## Current Known Environment Variables
-- `GEMINI_API_KEY`
-- `GEMINI_MODEL`
-- `GEMINI_BASE_URL`
-- `OLLAMA_BASE_URL`
-- `OLLAMA_WHISPER_MODEL` — model tag for "Inner Whisper" (default: `llama3.1:8b`); replaces `OLLAMA_MODEL`
+
+These are bootstrap / fallback values. From Phase 11 onward, all except `REASONIC_DB_PATH` can be overridden at runtime via the in-app settings panel.
+
+- `REASONIC_DB_PATH` — path to the main SQLite database (default: `reasonic.db` next to the binary); **not UI-configurable**
+- `GEMINI_API_KEY` — required; Google Gemini authentication key
+- `GEMINI_MODEL` — Gemini model tag (default: `gemini-2.5-pro`)
+- `GEMINI_BASE_URL` — Gemini API base URL (default: `https://generativelanguage.googleapis.com`)
+- `LASTFM_API_KEY` — required; Last.fm authentication key for album art
+- `LASTFM_BASE_URL` — Last.fm API base URL (default: `https://ws.audioscrobbler.com/2.0/`)
+- `OLLAMA_BASE_URL` — Ollama server URL (default: `http://localhost:11434`)
+- `OLLAMA_WHISPER_MODEL` — model tag for "Inner Whisper" (default: `llama3.1:8b`)
 - `OLLAMA_SHOUT_MODEL` — model tag for "Inner Shout" (default: `gemma4:e4b`)
-- `CLEMENTINE_DB_PATH`
-- `CLEMENTINE_MATCH_THRESHOLD`
-- `RECOMMENDATION_MIN_TRACKS`
-- `RECOMMENDATION_MAX_TRACKS`
-- `RECOMMENDATION_SUGGESTION_CACHE_MINUTES`
+- `CLEMENTINE_DB_PATH` — path to the Clementine SQLite database copy (no default; must be set)
+- `CLEMENTINE_MATCH_THRESHOLD` — fuzzy-match similarity threshold 0–1 (default: `0.75`)
 - `CLEMENTINE_EXE_PATH` — path to Clementine executable (default: `C:\Program Files (x86)\Clementine\clementine.exe` on Windows, `clementine` on Linux)
-- `LASTFM_API_KEY` — Last.fm read API key for album art (required in Phase 5)
-- `LASTFM_BASE_URL` — Last.fm API base URL (optional, defaults to `https://ws.audioscrobbler.com/2.0/`)
-- `SESSION_DB_PATH` — path to the session history SQLite database (Phase 8; default: `session_history.db` next to the binary)
-- `SESSION_MEMORY_SIZE` — max number of active AI replies kept in memory (Phase 8; default: `25`)
-- `SESSION_DEFAULT_TRACK_DURATION_SECONDS` — assumed duration in seconds for tracks with no Clementine data (Phase 8; default: `210` = 3.5 min)
-- `APP_PUBLIC_URL`
-- `APP_CONTACT_EMAIL`
-- `APP_VERSION`
+- `RECOMMENDATION_MIN_TRACKS` — minimum tracks to request from AI (default: `10`)
+- `RECOMMENDATION_MAX_TRACKS` — maximum tracks to request from AI (default: `20`)
+- `RECOMMENDATION_SUGGESTION_CACHE_MINUTES` — suggestion cache lifetime in minutes (default: `60`)
+- `SESSION_MEMORY_SIZE` — max AI replies kept before FIFO eviction (default: `25`)
+- `SESSION_DEFAULT_TRACK_DURATION_SECONDS` — assumed duration for tracks with no Clementine data (default: `210` = 3.5 min)
 
 ## Build / Test Expectations
 When making changes, always consider:

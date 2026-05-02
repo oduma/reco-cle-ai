@@ -1,7 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.Extensions.Options;
-using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 using Reco.Api.Models;
 
@@ -10,8 +8,7 @@ namespace Reco.Api.Services;
 public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
 {
     private readonly HttpClient _httpClient;
-    private readonly GeminiOptions _options;
-    private readonly RecommendationOptions _recommendationOptions;
+    private readonly IAppSettingsService _settings;
     private readonly ILogger<GeminiGatewayService> _logger;
 
     private static readonly string ChatSystemInstruction =
@@ -22,7 +19,7 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
         "Always wrap every track title and artist name in **double asterisks** — for example: **Kind of Blue** by **Miles Davis**." +
         AiSystemInstructions.SessionMemoryInstruction;
 
-    private string BuildRecommendationSystemInstruction() =>
+    private static string BuildRecommendationSystemInstruction(int minTracks, int maxTracks) =>
         "You are an expert music discovery assistant. For each user request you must respond with a JSON object " +
         "containing exactly two fields:\n" +
         "- \"narrative\": a warm, conversational paragraph recommending music, written like a knowledgeable curator. " +
@@ -30,19 +27,17 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
         "Wrap every track title and artist name in **double asterisks** — for example: **Kind of Blue** by **Miles Davis**.\n" +
         "- \"tracks\": an array of the specific tracks you mention in your narrative. Each track must have " +
         "\"title\", \"artist\", and optionally \"album\".\n" +
-        $"Return between {_recommendationOptions.MinTracks} and {_recommendationOptions.MaxTracks} tracks. " +
+        $"Return between {minTracks} and {maxTracks} tracks. " +
         "Always return valid JSON and nothing else." +
         AiSystemInstructions.SessionMemoryInstruction;
 
     public GeminiGatewayService(
         HttpClient httpClient,
-        IOptions<GeminiOptions> options,
-        IOptions<RecommendationOptions> recommendationOptions,
+        IAppSettingsService settings,
         ILogger<GeminiGatewayService> logger)
     {
         _httpClient = httpClient;
-        _options = options.Value;
-        _recommendationOptions = recommendationOptions.Value;
+        _settings = settings;
         _logger = logger;
     }
 
@@ -55,7 +50,12 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
         IReadOnlyList<ConversationTurn> history,
         CancellationToken cancellationToken = default)
     {
-        var url = $"{_options.BaseUrl}/v1beta/models/{_options.Model}:generateContent?key={_options.ApiKey}";
+        var apiKey  = await _settings.GetStringAsync("GEMINI_API_KEY", "");
+        var model   = await _settings.GetStringAsync("GEMINI_MODEL",   "gemini-2.5-pro");
+        var baseUrl = await _settings.GetStringAsync("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com");
+
+        var url          = $"{baseUrl}/v1beta/models/{model}:generateContent?key={apiKey}";
+        var sanitizedUrl = $"{baseUrl}/v1beta/models/{model}:generateContent?key=***";
 
         var contents = history
             .Select(t => new { role = t.Role, parts = new[] { new { text = t.Text } } })
@@ -68,8 +68,6 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
             systemInstruction = new { parts = new[] { new { text = ChatSystemInstruction } } },
             contents
         };
-
-        var sanitizedUrl = $"{_options.BaseUrl}/v1beta/models/{_options.Model}:generateContent?key=***";
 
         for (var attempt = 0; attempt <= MaxRetries; attempt++)
         {
@@ -119,7 +117,7 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "HTTP error calling Gemini API for model {Model}", _options.Model);
+                _logger.LogError(ex, "HTTP error calling Gemini API for model {Model}", model);
                 throw;
             }
             catch (Exception ex) when (ex is not OperationCanceledException and not InvalidOperationException)
@@ -138,8 +136,14 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
         IReadOnlyList<ConversationTurn> history,
         CancellationToken cancellationToken = default)
     {
-        var url = $"{_options.BaseUrl}/v1beta/models/{_options.Model}:generateContent?key={_options.ApiKey}";
-        var sanitizedUrl = $"{_options.BaseUrl}/v1beta/models/{_options.Model}:generateContent?key=***";
+        var apiKey    = await _settings.GetStringAsync("GEMINI_API_KEY",  "");
+        var model     = await _settings.GetStringAsync("GEMINI_MODEL",    "gemini-2.5-pro");
+        var baseUrl   = await _settings.GetStringAsync("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com");
+        var minTracks = await _settings.GetIntAsync("RECOMMENDATION_MIN_TRACKS", 10);
+        var maxTracks = await _settings.GetIntAsync("RECOMMENDATION_MAX_TRACKS", 20);
+
+        var url          = $"{baseUrl}/v1beta/models/{model}:generateContent?key={apiKey}";
+        var sanitizedUrl = $"{baseUrl}/v1beta/models/{model}:generateContent?key=***";
 
         var contents = history
             .Select(t => new { role = t.Role, parts = new[] { new { text = t.Text } } })
@@ -149,7 +153,7 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
 
         var requestBody = new
         {
-            systemInstruction = new { parts = new[] { new { text = BuildRecommendationSystemInstruction() } } },
+            systemInstruction = new { parts = new[] { new { text = BuildRecommendationSystemInstruction(minTracks, maxTracks) } } },
             contents,
             generationConfig = new
             {
@@ -168,9 +172,9 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
                                 type = "OBJECT",
                                 properties = new
                                 {
-                                    title = new { type = "STRING" },
+                                    title  = new { type = "STRING" },
                                     artist = new { type = "STRING" },
-                                    album = new { type = "STRING" }
+                                    album  = new { type = "STRING" }
                                 },
                                 required = new[] { "title", "artist" }
                             }
@@ -219,7 +223,6 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
                 .GetString() ?? "{}";
 
             _logger.LogInformation("[Gemini/Reco] Response JSON length: {Length} chars", rawText.Length);
-
             return ParseMusicRecommendation(rawText);
         }
 
@@ -243,9 +246,9 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
             {
                 foreach (var t in tracksEl.EnumerateArray())
                 {
-                    var title = t.TryGetProperty("title", out var ti) ? ti.GetString() ?? "" : "";
+                    var title  = t.TryGetProperty("title",  out var ti) ? ti.GetString() ?? "" : "";
                     var artist = t.TryGetProperty("artist", out var ar) ? ar.GetString() ?? "" : "";
-                    var album = t.TryGetProperty("album", out var al) ? al.GetString() : null;
+                    var album  = t.TryGetProperty("album",  out var al) ? al.GetString() : null;
 
                     if (title.Length > 0 && artist.Length > 0)
                         tracks.Add(new TrackSuggestion(title, artist, album));

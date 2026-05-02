@@ -1,7 +1,5 @@
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Options;
-using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 using Reco.Api.Models;
 
@@ -16,9 +14,9 @@ public class SessionHistoryRepository : ISessionHistoryRepository
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    public SessionHistoryRepository(IOptions<SessionMemoryOptions> options)
+    public SessionHistoryRepository(IConfiguration configuration)
     {
-        var dbPath = options.Value.DbPath;
+        var dbPath = configuration["REASONIC_DB_PATH"] ?? "reasonic.db";
 
         var dir = Path.GetDirectoryName(Path.GetFullPath(dbPath));
         if (!string.IsNullOrEmpty(dir))
@@ -57,6 +55,12 @@ public class SessionHistoryRepository : ISessionHistoryRepository
             CREATE TABLE IF NOT EXISTS session_state (
                 key   TEXT PRIMARY KEY,
                 value TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key        TEXT PRIMARY KEY,
+                value      TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             );
             """;
         await cmd.ExecuteNonQueryAsync();

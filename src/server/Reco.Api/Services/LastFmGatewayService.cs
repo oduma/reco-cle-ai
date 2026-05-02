@@ -1,19 +1,15 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.Extensions.Options;
-using Reco.Api.Configuration;
 
 namespace Reco.Api.Services;
 
 public class LastFmGatewayService(
     HttpClient httpClient,
-    IOptions<LastFmOptions> options,
+    IAppSettingsService settings,
     ILogger<LastFmGatewayService> logger)
     : ILastFmGatewayService
 {
-    private readonly LastFmOptions _options = options.Value;
-
     // Keyed by "artist|title" (normalised). Value is the URL or null (meaning "looked up, no art found").
     private readonly ConcurrentDictionary<string, string?> _cache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -30,28 +26,33 @@ public class LastFmGatewayService(
         if (_cache.TryGetValue(cacheKey, out var cached))
             return cached;
 
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
+        var apiKey = await settings.GetStringAsync("LASTFM_API_KEY", "");
+
+        if (string.IsNullOrWhiteSpace(apiKey))
         {
             logger.LogWarning("[LastFm] LASTFM_API_KEY is not configured — album art will be unavailable.");
             return null;
         }
 
+        var baseUrl = await settings.GetStringAsync("LASTFM_BASE_URL", "https://ws.audioscrobbler.com/2.0/");
+
         // Strategy 1: album.getInfo (most reliable art source when album title is known)
         if (!string.IsNullOrWhiteSpace(album))
         {
-            var artFromAlbum = await FetchAlbumArtAsync(artist, album, cancellationToken);
+            var artFromAlbum = await FetchAlbumArtAsync(artist, album, apiKey, baseUrl, cancellationToken);
             if (artFromAlbum is not null)
                 return _cache[cacheKey] = artFromAlbum;
         }
 
         // Strategy 2: track.getInfo (also carries album art in track.album.image)
-        var artFromTrack = await FetchTrackArtAsync(artist, title, cancellationToken);
+        var artFromTrack = await FetchTrackArtAsync(artist, title, apiKey, baseUrl, cancellationToken);
         return _cache[cacheKey] = artFromTrack;
     }
 
-    private async Task<string?> FetchAlbumArtAsync(string artist, string album, CancellationToken ct)
+    private async Task<string?> FetchAlbumArtAsync(
+        string artist, string album, string apiKey, string baseUrl, CancellationToken ct)
     {
-        var url = BuildUrl("album.getInfo",
+        var url = BuildUrl(baseUrl, apiKey, "album.getInfo",
             ("artist", artist),
             ("album", album));
 
@@ -63,10 +64,7 @@ public class LastFmGatewayService(
             if (json.TryGetProperty("error", out _))
                 return null;
 
-            return json
-                .TryGetPath("album", "image", out var images)
-                ? BestImage(images)
-                : null;
+            return json.TryGetPath("album", "image", out var images) ? BestImage(images) : null;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -75,9 +73,10 @@ public class LastFmGatewayService(
         }
     }
 
-    private async Task<string?> FetchTrackArtAsync(string artist, string title, CancellationToken ct)
+    private async Task<string?> FetchTrackArtAsync(
+        string artist, string title, string apiKey, string baseUrl, CancellationToken ct)
     {
-        var url = BuildUrl("track.getInfo",
+        var url = BuildUrl(baseUrl, apiKey, "track.getInfo",
             ("artist", artist),
             ("track", title));
 
@@ -89,10 +88,7 @@ public class LastFmGatewayService(
             if (json.TryGetProperty("error", out _))
                 return null;
 
-            return json
-                .TryGetPath("track", "album", "image", out var images)
-                ? BestImage(images)
-                : null;
+            return json.TryGetPath("track", "album", "image", out var images) ? BestImage(images) : null;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -101,14 +97,15 @@ public class LastFmGatewayService(
         }
     }
 
-    private string BuildUrl(string method, params (string Key, string Value)[] parameters)
+    private static string BuildUrl(string baseUrl, string apiKey, string method,
+        params (string Key, string Value)[] parameters)
     {
         var query = string.Join("&", parameters
             .Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}")
-            .Append($"api_key={_options.ApiKey}")
+            .Append($"api_key={apiKey}")
             .Append("format=json"));
 
-        return $"{_options.BaseUrl.TrimEnd('/')}/?method={method}&{query}";
+        return $"{baseUrl.TrimEnd('/')}/?method={method}&{query}";
     }
 
     private static string? BestImage(JsonElement images)
@@ -121,7 +118,7 @@ public class LastFmGatewayService(
         foreach (var img in images.EnumerateArray())
         {
             var size = img.TryGetProperty("size", out var s) ? s.GetString() ?? "" : "";
-            var url = img.TryGetProperty("#text", out var t) ? t.GetString() ?? "" : "";
+            var url  = img.TryGetProperty("#text", out var t) ? t.GetString() ?? "" : "";
 
             if (!string.IsNullOrWhiteSpace(url))
                 imageMap[size] = url;

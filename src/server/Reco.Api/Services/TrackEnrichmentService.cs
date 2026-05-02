@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Options;
-using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 using Reco.Api.Models;
 
@@ -9,19 +7,19 @@ public class TrackEnrichmentService : ITrackEnrichmentService
 {
     private readonly IClementineService _clementine;
     private readonly ILastFmGatewayService _lastFm;
-    private readonly ClementineOptions _clementineOptions;
+    private readonly IAppSettingsService _settings;
     private readonly ILogger<TrackEnrichmentService> _logger;
 
     public TrackEnrichmentService(
         IClementineService clementine,
         ILastFmGatewayService lastFm,
-        IOptions<ClementineOptions> clementineOptions,
+        IAppSettingsService settings,
         ILogger<TrackEnrichmentService> logger)
     {
         _clementine = clementine;
-        _lastFm = lastFm;
-        _clementineOptions = clementineOptions.Value;
-        _logger = logger;
+        _lastFm     = lastFm;
+        _settings   = settings;
+        _logger     = logger;
     }
 
     public async Task<IReadOnlyList<TrackSuggestion>> EnrichAsync(
@@ -34,12 +32,12 @@ public class TrackEnrichmentService : ITrackEnrichmentService
         try
         {
             var inventory = await _clementine.LoadInventoryAsync(cancellationToken);
-            var threshold = _clementineOptions.MatchThreshold;
+            var threshold = await _settings.GetDoubleAsync("CLEMENTINE_MATCH_THRESHOLD", 0.75);
 
             annotated = rawTracks
                 .Select(r =>
                 {
-                    var stub = new TrackSuggestion(r.Title, r.Artist, r.Album);
+                    var stub  = new TrackSuggestion(r.Title, r.Artist, r.Album);
                     var match = inventory.FirstOrDefault(local => TrackMatcher.IsMatch(stub, local, threshold));
                     return stub with
                     {

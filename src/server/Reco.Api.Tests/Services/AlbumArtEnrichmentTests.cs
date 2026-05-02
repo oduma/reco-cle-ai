@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NSubstitute;
-using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 using Reco.Api.Models;
 using Reco.Api.Services;
@@ -48,11 +46,18 @@ public class AlbumArtEnrichmentTests
         sessionHistory.LogAiReplyAsync(Arg.Any<string>(), Arg.Any<DateTimeOffset>())
                       .Returns(Task.FromResult(1));
 
+        var settings = Substitute.For<IAppSettingsService>();
+        settings.GetDoubleAsync("CLEMENTINE_MATCH_THRESHOLD", Arg.Any<double>())
+                .Returns(Task.FromResult(0.75));
+        settings.GetStringAsync(Arg.Any<string>(), Arg.Any<string>())
+                .Returns(callInfo => Task.FromResult(callInfo.ArgAt<string>(1)));
+        settings.GetIntAsync(Arg.Any<string>(), Arg.Any<int>())
+                .Returns(callInfo => Task.FromResult(callInfo.ArgAt<int>(1)));
+
         return new RecommendationOrchestrationService(
             gemini, ollama, clementine, cache, lastFm,
             sessionCtxBuilder, sessionHistory,
-            Options.Create(new ClementineOptions()),
-            Options.Create(new OllamaOptions()),
+            settings,
             NullLogger<RecommendationOrchestrationService>.Instance);
     }
 
@@ -84,11 +89,18 @@ public class AlbumArtEnrichmentTests
         sessionHistory.LogAiReplyAsync(Arg.Any<string>(), Arg.Any<DateTimeOffset>())
                       .Returns(Task.FromResult(42));
 
+        var settings = Substitute.For<IAppSettingsService>();
+        settings.GetDoubleAsync("CLEMENTINE_MATCH_THRESHOLD", Arg.Any<double>())
+                .Returns(Task.FromResult(0.75));
+        settings.GetStringAsync(Arg.Any<string>(), Arg.Any<string>())
+                .Returns(callInfo => Task.FromResult(callInfo.ArgAt<string>(1)));
+        settings.GetIntAsync(Arg.Any<string>(), Arg.Any<int>())
+                .Returns(callInfo => Task.FromResult(callInfo.ArgAt<int>(1)));
+
         var service = new RecommendationOrchestrationService(
             gemini, ollama, clementine, cache, lastFm,
             sessionCtxBuilder, sessionHistory,
-            Options.Create(new ClementineOptions()),
-            Options.Create(new OllamaOptions()),
+            settings,
             NullLogger<RecommendationOrchestrationService>.Instance);
 
         return (service, sessionHistory);

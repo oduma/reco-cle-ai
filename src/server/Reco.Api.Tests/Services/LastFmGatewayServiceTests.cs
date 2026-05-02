@@ -1,9 +1,6 @@
 using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using Reco.Api.Configuration;
+using NSubstitute;
 using Reco.Api.Services;
 
 namespace Reco.Api.Tests.Services;
@@ -15,18 +12,15 @@ public class LastFmGatewayServiceTests
         string apiKey = "test-key",
         string? baseUrl = null)
     {
-        var client = new HttpClient(handler)
-        {
-            BaseAddress = null
-        };
+        var client = new HttpClient(handler) { BaseAddress = null };
 
-        var options = Options.Create(new LastFmOptions
-        {
-            ApiKey = apiKey,
-            BaseUrl = baseUrl ?? "https://ws.audioscrobbler.com/2.0/"
-        });
+        var settings = Substitute.For<IAppSettingsService>();
+        settings.GetStringAsync("LASTFM_API_KEY", Arg.Any<string>())
+                .Returns(Task.FromResult(apiKey));
+        settings.GetStringAsync("LASTFM_BASE_URL", Arg.Any<string>())
+                .Returns(Task.FromResult(baseUrl ?? "https://ws.audioscrobbler.com/2.0/"));
 
-        return new LastFmGatewayService(client, options, NullLogger<LastFmGatewayService>.Instance);
+        return new LastFmGatewayService(client, settings, NullLogger<LastFmGatewayService>.Instance);
     }
 
     [Fact]

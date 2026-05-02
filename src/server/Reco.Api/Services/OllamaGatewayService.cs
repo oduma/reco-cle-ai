@@ -1,7 +1,5 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.Extensions.Options;
-using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 using Reco.Api.Models;
 
@@ -10,23 +8,20 @@ namespace Reco.Api.Services;
 public class OllamaGatewayService : IOllamaGatewayService
 {
     private readonly HttpClient _httpClient;
-    private readonly OllamaOptions _options;
-    private readonly RecommendationOptions _recommendationOptions;
+    private readonly IAppSettingsService _settings;
     private readonly ILogger<OllamaGatewayService> _logger;
 
     public OllamaGatewayService(
         HttpClient httpClient,
-        IOptions<OllamaOptions> options,
-        IOptions<RecommendationOptions> recommendationOptions,
+        IAppSettingsService settings,
         ILogger<OllamaGatewayService> logger)
     {
         _httpClient = httpClient;
-        _options = options.Value;
-        _recommendationOptions = recommendationOptions.Value;
+        _settings = settings;
         _logger = logger;
     }
 
-    private string BuildSystemPrompt() =>
+    private static string BuildSystemPrompt(int minTracks, int maxTracks) =>
         "You are an expert music discovery assistant. For each user request you must respond with ONLY a " +
         "JSON object — no other text, no markdown, no code blocks.\n\n" +
         "The JSON must have exactly two fields:\n" +
@@ -35,7 +30,7 @@ public class OllamaGatewayService : IOllamaGatewayService
         "Wrap every track title and artist name in **double asterisks** — for example: **Kind of Blue** by **Miles Davis**.\n" +
         "- \"tracks\": an array of the specific tracks you mention in your narrative. Each track must have " +
         "\"title\", \"artist\", and optionally \"album\".\n\n" +
-        $"Return between {_recommendationOptions.MinTracks} and {_recommendationOptions.MaxTracks} tracks.\n\n" +
+        $"Return between {minTracks} and {maxTracks} tracks.\n\n" +
         "Example response:\n" +
         "{\n" +
         "  \"narrative\": \"Here are some atmospheric picks for you...\",\n" +
@@ -46,11 +41,14 @@ public class OllamaGatewayService : IOllamaGatewayService
         "}" +
         AiSystemInstructions.SessionMemoryInstruction;
 
-    public Task<MusicRecommendationResult> GetMusicRecommendationAsync(
+    public async Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
         IReadOnlyList<ConversationTurn> history,
-        CancellationToken cancellationToken = default) =>
-        GetMusicRecommendationAsync(prompt, history, _options.WhisperModel, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var whisperModel = await _settings.GetStringAsync("OLLAMA_WHISPER_MODEL", "llama3.1:8b");
+        return await GetMusicRecommendationAsync(prompt, history, whisperModel, cancellationToken);
+    }
 
     public async Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
@@ -58,11 +56,15 @@ public class OllamaGatewayService : IOllamaGatewayService
         string model,
         CancellationToken cancellationToken = default)
     {
-        var url = $"{_options.BaseUrl}/v1/chat/completions";
+        var baseUrl   = await _settings.GetStringAsync("OLLAMA_BASE_URL",          "http://localhost:11434");
+        var minTracks = await _settings.GetIntAsync("RECOMMENDATION_MIN_TRACKS", 10);
+        var maxTracks = await _settings.GetIntAsync("RECOMMENDATION_MAX_TRACKS", 20);
+
+        var url = $"{baseUrl}/v1/chat/completions";
 
         var messages = new List<object>
         {
-            new { role = "system", content = BuildSystemPrompt() }
+            new { role = "system", content = BuildSystemPrompt(minTracks, maxTracks) }
         };
 
         foreach (var turn in history)

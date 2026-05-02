@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Options;
-using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 
 namespace Reco.Api.Services;
@@ -8,15 +6,25 @@ namespace Reco.Api.Services;
 public class SuggestionCacheService : ISuggestionCacheService
 {
     private readonly ConcurrentDictionary<string, DateTime> _cache = new();
-    private readonly IOptions<RecommendationOptions> _options;
+    private readonly IConfiguration _configuration;
 
-    public SuggestionCacheService(IOptions<RecommendationOptions> options)
+    public SuggestionCacheService(IConfiguration configuration)
     {
-        _options = options;
+        _configuration = configuration;
     }
 
-    private TimeSpan CacheDuration =>
-        TimeSpan.FromMinutes(_options.Value.SuggestionCacheDurationMinutes);
+    // Read from IConfiguration on each access so env-var changes are picked up on restart.
+    // Cache duration is not exposed via the UI settings panel since ISuggestionCacheService methods are sync.
+    private TimeSpan CacheDuration
+    {
+        get
+        {
+            var raw = _configuration["RECOMMENDATION_SUGGESTION_CACHE_MINUTES"];
+            if (int.TryParse(raw, out var minutes) && minutes >= 0)
+                return TimeSpan.FromMinutes(minutes);
+            return TimeSpan.FromMinutes(60);
+        }
+    }
 
     public IReadOnlyList<TrackSuggestion> ExcludeRecentlySuggested(IReadOnlyList<TrackSuggestion> tracks)
     {
@@ -28,10 +36,9 @@ public class SuggestionCacheService : ISuggestionCacheService
 
     public void MarkAsSuggested(IEnumerable<TrackSuggestion> tracks)
     {
-        var now = DateTime.UtcNow;
-
-        // Lazy expiry cleanup to prevent unbounded growth
+        var now    = DateTime.UtcNow;
         var cutoff = now - CacheDuration;
+
         foreach (var key in _cache.Keys.ToArray())
         {
             if (_cache.TryGetValue(key, out var ts) && ts <= cutoff)

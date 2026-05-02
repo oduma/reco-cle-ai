@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NSubstitute;
-using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 using Reco.Api.Models;
 using Reco.Api.Services;
@@ -17,7 +15,7 @@ public class ProviderRoutingTests
         IGeminiGatewayService Gemini,
         IOllamaGatewayService Ollama,
         RecommendationOrchestrationService Service)
-    BuildService(OllamaOptions? ollamaOptions = null)
+    BuildService(string whisperModel = "llama3.1:8b", string shoutModel = "gemma4:e4b")
     {
         var gemini = Substitute.For<IGeminiGatewayService>();
         gemini.GetMusicRecommendationAsync(
@@ -48,11 +46,20 @@ public class ProviderRoutingTests
         sessionHistory.LogAiReplyAsync(Arg.Any<string>(), Arg.Any<DateTimeOffset>())
                       .Returns(Task.FromResult(1));
 
+        var settings = Substitute.For<IAppSettingsService>();
+        settings.GetStringAsync("OLLAMA_WHISPER_MODEL", Arg.Any<string>())
+                .Returns(Task.FromResult(whisperModel));
+        settings.GetStringAsync("OLLAMA_SHOUT_MODEL", Arg.Any<string>())
+                .Returns(Task.FromResult(shoutModel));
+        settings.GetDoubleAsync("CLEMENTINE_MATCH_THRESHOLD", Arg.Any<double>())
+                .Returns(Task.FromResult(0.75));
+        settings.GetIntAsync(Arg.Any<string>(), Arg.Any<int>())
+                .Returns(callInfo => Task.FromResult(callInfo.ArgAt<int>(1)));
+
         var service = new RecommendationOrchestrationService(
             gemini, ollama, clementine, cache, lastFm,
             sessionCtxBuilder, sessionHistory,
-            Options.Create(new ClementineOptions()),
-            Options.Create(ollamaOptions ?? new OllamaOptions()),
+            settings,
             NullLogger<RecommendationOrchestrationService>.Instance);
 
         return (gemini, ollama, service);
@@ -61,8 +68,7 @@ public class ProviderRoutingTests
     [Fact]
     public async Task Inner_whisper_calls_ollama_with_whisper_model()
     {
-        var opts = new OllamaOptions { WhisperModel = "llama3.1:8b", ShoutModel = "gemma4:e4b" };
-        var (_, ollama, service) = BuildService(opts);
+        var (_, ollama, service) = BuildService("llama3.1:8b", "gemma4:e4b");
 
         await service.GetRecommendationsAsync("jazz", "inner-whisper");
 
@@ -74,8 +80,7 @@ public class ProviderRoutingTests
     [Fact]
     public async Task Inner_shout_calls_ollama_with_shout_model()
     {
-        var opts = new OllamaOptions { WhisperModel = "llama3.1:8b", ShoutModel = "gemma4:e4b" };
-        var (_, ollama, service) = BuildService(opts);
+        var (_, ollama, service) = BuildService("llama3.1:8b", "gemma4:e4b");
 
         await service.GetRecommendationsAsync("jazz", "inner-shout");
 

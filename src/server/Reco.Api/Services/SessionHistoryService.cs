@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Options;
-using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 using Reco.Api.Models;
 
@@ -8,16 +6,16 @@ namespace Reco.Api.Services;
 public class SessionHistoryService : ISessionHistoryService
 {
     private readonly ISessionHistoryRepository _repo;
-    private readonly SessionMemoryOptions _options;
+    private readonly IAppSettingsService _settings;
 
     private const string UserLabel = "me";
 
     public SessionHistoryService(
         ISessionHistoryRepository repo,
-        IOptions<SessionMemoryOptions> options)
+        IAppSettingsService settings)
     {
-        _repo = repo;
-        _options = options.Value;
+        _repo     = repo;
+        _settings = settings;
     }
 
     public Task LogUserChatAsync(string prompt, DateTimeOffset timestamp) =>
@@ -56,7 +54,7 @@ public class SessionHistoryService : ISessionHistoryService
 
     public async Task<SessionHistoryResponse> GetSessionHistoryAsync()
     {
-        var turns = await _repo.GetHistoryWithSuggestionsAsync();
+        var turns         = await _repo.GetHistoryWithSuggestionsAsync();
         var activeReplyId = await _repo.GetActiveReplyIdAsync();
         return new SessionHistoryResponse(turns, activeReplyId);
     }
@@ -69,8 +67,9 @@ public class SessionHistoryService : ISessionHistoryService
 
     public async Task<MemoryStatus> GetMemoryStatusAsync()
     {
-        var used = await _repo.GetActiveAiReplyCountAsync();
-        return new MemoryStatus(used, _options.MemorySize);
+        var used       = await _repo.GetActiveAiReplyCountAsync();
+        var memorySize = await _settings.GetIntAsync("SESSION_MEMORY_SIZE", 25);
+        return new MemoryStatus(used, memorySize);
     }
 
     public async Task BustMemoryAsync()
@@ -83,7 +82,8 @@ public class SessionHistoryService : ISessionHistoryService
 
     private async Task EvictIfNeededAsync()
     {
-        while (await _repo.GetActiveAiReplyCountAsync() > _options.MemorySize)
+        var memorySize = await _settings.GetIntAsync("SESSION_MEMORY_SIZE", 25);
+        while (await _repo.GetActiveAiReplyCountAsync() > memorySize)
         {
             var oldestBlock = await _repo.GetOldestActiveConversationBlockAsync();
             if (oldestBlock is null) break;

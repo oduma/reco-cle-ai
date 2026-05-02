@@ -1,6 +1,4 @@
 using System.Text;
-using Microsoft.Extensions.Options;
-using Reco.Api.Configuration;
 using Reco.Api.DTOs;
 using Reco.Api.Models;
 
@@ -9,12 +7,12 @@ namespace Reco.Api.Services;
 public class SessionContextBuilder : ISessionContextBuilder
 {
     private readonly ISessionHistoryService _session;
-    private readonly SessionMemoryOptions _options;
+    private readonly IAppSettingsService _settings;
 
-    public SessionContextBuilder(ISessionHistoryService session, IOptions<SessionMemoryOptions> options)
+    public SessionContextBuilder(ISessionHistoryService session, IAppSettingsService settings)
     {
         _session = session;
-        _options = options.Value;
+        _settings = settings;
     }
 
     public async Task<SessionContext> BuildAsync(CancellationToken cancellationToken = default)
@@ -25,8 +23,9 @@ public class SessionContextBuilder : ISessionContextBuilder
         if (events.Count == 0)
             return new SessionContext([], null, memoryStatus);
 
-        var history = BuildHistory(events);
-        var preamble = BuildPreamble(events);
+        var defaultDuration = await _settings.GetDoubleAsync("SESSION_DEFAULT_TRACK_DURATION_SECONDS", 210.0);
+        var history  = BuildHistory(events);
+        var preamble = BuildPreamble(events, defaultDuration);
 
         return new SessionContext(history, preamble, memoryStatus);
     }
@@ -39,9 +38,9 @@ public class SessionContextBuilder : ISessionContextBuilder
                 e.Content ?? string.Empty))
             .ToList();
 
-    private string BuildPreamble(IReadOnlyList<SessionEvent> events)
+    private string BuildPreamble(IReadOnlyList<SessionEvent> events, double defaultTrackDuration)
     {
-        var sb = new StringBuilder();
+        var sb  = new StringBuilder();
         var now = DateTimeOffset.UtcNow;
 
         sb.AppendLine($"[{now:dddd dd MMMM yyyy, HH:mm} UTC]");
@@ -59,7 +58,7 @@ public class SessionContextBuilder : ISessionContextBuilder
 
                 case "ai-reply":
                     var narrative = e.Content ?? string.Empty;
-                    var excerpt = narrative.Length > 120
+                    var excerpt   = narrative.Length > 120
                         ? narrative[..120].TrimEnd() + "..."
                         : narrative;
                     sb.AppendLine($"- {t} — Reasonic: \"{excerpt}\"");
@@ -99,10 +98,10 @@ public class SessionContextBuilder : ISessionContextBuilder
                         sb.AppendLine($"- {t} — me: looked up \"{e.Title}\" · {e.Artist} on YouTube");
                 }
 
-                var totalTrackSec = tracksSince.Sum(e => e.DurationSeconds ?? _options.DefaultTrackDurationSeconds);
-                var elapsedSec    = (now - lastAiReply.Timestamp).TotalSeconds;
-                var totalMin      = (int)Math.Round(totalTrackSec / 60.0);
-                var elapsedMin    = (int)Math.Round(elapsedSec    / 60.0);
+                var totalTrackSec  = tracksSince.Sum(e => e.DurationSeconds ?? defaultTrackDuration);
+                var elapsedSec     = (now - lastAiReply.Timestamp).TotalSeconds;
+                var totalMin       = (int)Math.Round(totalTrackSec / 60.0);
+                var elapsedMin     = (int)Math.Round(elapsedSec    / 60.0);
                 var stillListening = totalTrackSec > elapsedSec;
 
                 sb.Append($"→ ~{totalMin} min of music. {elapsedMin} min has passed — ");
