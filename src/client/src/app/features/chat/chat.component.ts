@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { firstValueFrom } from 'rxjs';
 import {
   RecommendationService,
   TrackSuggestion,
@@ -18,6 +19,8 @@ interface Message {
   role: 'user' | 'model';
   text: string;
   timestamp: Date;
+  eventId?: number;
+  hasSuggestions?: boolean;
 }
 
 const PROVIDER_KEY = 'reco-provider';
@@ -76,6 +79,8 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   protected suggestionsMessage = signal<string | null>(null);
   protected hasSuggestions = signal(false);
 
+  protected activeReplyId = signal<number | null>(null);
+
   protected loadingPhrase = signal(LOADING_PHRASES[0]);
   protected tryLineHint = signal('');
 
@@ -128,6 +133,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     } catch {
       // hint stays empty if asset unavailable
     }
+    await this.hydrate();
   }
 
   ngOnDestroy(): void {
@@ -196,9 +202,16 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
 
     this.recommendationService.getRecommendations(text, this.provider()).subscribe({
       next: response => {
+        this.activeReplyId.set(response.aiReplyEventId);
         this.messages.update(msgs => [
           ...msgs,
-          { role: 'model', text: response.narrative, timestamp: new Date() },
+          {
+            role: 'model',
+            text: response.narrative,
+            timestamp: new Date(),
+            eventId: response.aiReplyEventId,
+            hasSuggestions: response.suggestions.length > 0,
+          },
         ]);
         this.suggestions.set(response.suggestions);
         this.suggestionsMessage.set(response.message);
@@ -307,6 +320,64 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     const hm = `${pad(ts.getHours())}:${pad(ts.getMinutes())}`;
     if (ts.toDateString() === now.toDateString()) return hm;
     return `${pad(ts.getDate())}/${pad(ts.getMonth() + 1)}/${ts.getFullYear()} ${hm}`;
+  }
+
+  protected activateReply(eventId: number): void {
+    if (this.activeReplyId() === eventId) return;
+    this.activeReplyId.set(eventId);
+    this.hasSuggestions.set(true);
+    this.suggestionsLoading.set(true);
+    this.suggestionsError.set(false);
+
+    this.sessionService.getEnrichedSuggestions(eventId).subscribe({
+      next: enriched => {
+        if (this.activeReplyId() !== eventId) return; // race guard
+        this.suggestions.set(enriched.suggestions);
+        this.suggestionsMessage.set(enriched.message);
+        this.suggestionsLoading.set(false);
+      },
+      error: () => {
+        if (this.activeReplyId() !== eventId) return;
+        this.suggestionsLoading.set(false);
+        this.suggestionsError.set(true);
+      },
+    });
+
+    // fire-and-forget persistence
+    this.sessionService.setActiveReply(eventId).subscribe({ error: () => {} });
+  }
+
+  private async hydrate(): Promise<void> {
+    try {
+      const history = await firstValueFrom(this.sessionService.getHistory());
+      if (history.turns.length === 0) return;
+
+      this.messages.set(history.turns.map(t => ({
+        role: t.role,
+        text: t.text,
+        timestamp: new Date(t.timestamp),
+        eventId: t.eventId,
+        hasSuggestions: t.hasSuggestions,
+      })));
+
+      this.activeReplyId.set(history.activeReplyId);
+      this.shouldScroll = true;
+
+      if (history.activeReplyId != null) {
+        this.hasSuggestions.set(true);
+        this.suggestionsLoading.set(true);
+        this.sessionService.getEnrichedSuggestions(history.activeReplyId).subscribe({
+          next: enriched => {
+            this.suggestions.set(enriched.suggestions);
+            this.suggestionsMessage.set(enriched.message);
+            this.suggestionsLoading.set(false);
+          },
+          error: () => { this.suggestionsLoading.set(false); },
+        });
+      }
+    } catch {
+      // silently fail — app works without history
+    }
   }
 
   private typewriterStart(phrase: string): void {

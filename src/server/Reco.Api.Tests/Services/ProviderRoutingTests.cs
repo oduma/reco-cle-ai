@@ -45,6 +45,8 @@ public class ProviderRoutingTests
                          .Returns(Task.FromResult(new SessionContext([], null, new MemoryStatus(0, 25))));
 
         var sessionHistory = Substitute.For<ISessionHistoryService>();
+        sessionHistory.LogAiReplyAsync(Arg.Any<string>(), Arg.Any<DateTimeOffset>())
+                      .Returns(Task.FromResult(1));
 
         var service = new RecommendationOrchestrationService(
             gemini, ollama, clementine, cache, lastFm,
@@ -114,5 +116,27 @@ public class ProviderRoutingTests
         var response = await service.GetRecommendationsAsync("jazz", "inner-shout");
 
         Assert.Equal("inner-shout", response.ProviderUsed);
+    }
+
+    // ── Phase 9 ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task AiReplyEventId_is_present_in_gemini_response()
+    {
+        var (_, _, service) = BuildService();
+
+        var response = await service.GetRecommendationsAsync("jazz", "gemini");
+
+        Assert.True(response.AiReplyEventId >= 0);
+    }
+
+    [Fact]
+    public async Task AiReplyEventId_is_present_in_inner_whisper_response()
+    {
+        var (_, _, service) = BuildService();
+
+        var response = await service.GetRecommendationsAsync("jazz", "inner-whisper");
+
+        Assert.True(response.AiReplyEventId >= 0);
     }
 }

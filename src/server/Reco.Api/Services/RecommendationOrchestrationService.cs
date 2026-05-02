@@ -99,7 +99,12 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
 
         // Log the exchange to the session history after a successful AI response
         await _sessionHistory.LogUserChatAsync(prompt, promptTimestamp);
-        await _sessionHistory.LogAiReplyAsync(result.Narrative, DateTimeOffset.UtcNow);
+        var aiReplyId = await _sessionHistory.LogAiReplyAsync(result.Narrative, DateTimeOffset.UtcNow);
+
+        var rawTracks = result.Tracks.Select(t => new RawTrack(t.Title, t.Artist, t.Album)).ToList();
+        if (rawTracks.Count > 0)
+            await _sessionHistory.LogTrackSuggestionsAsync(rawTracks, aiReplyId);
+        await _sessionHistory.SetActiveReplyIdAsync(aiReplyId);
 
         var (annotatedTracks, message) = await AnnotateWithLocalLibraryAsync(result.Tracks, cancellationToken);
 
@@ -127,7 +132,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
 
         var enriched = await EnrichWithAlbumArtAsync(tracksToReturn, cancellationToken);
 
-        return new RecommendationResponse(result.Narrative, enriched, message, providerUsed, usedFallback);
+        return new RecommendationResponse(result.Narrative, enriched, message, providerUsed, usedFallback, aiReplyId);
     }
 
     private async Task<IReadOnlyList<TrackSuggestion>> EnrichWithAlbumArtAsync(

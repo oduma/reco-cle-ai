@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { TrackSuggestion } from './recommendation.service';
 
 export interface MemoryStatus {
   used: number;
@@ -14,6 +15,24 @@ export interface SessionEventRequest {
   title: string;
   durationSeconds: number | null;
   timestamp: string; // ISO 8601
+}
+
+export interface HistoryTurn {
+  role: 'user' | 'model';
+  text: string;
+  timestamp: string; // ISO 8601 from server
+  eventId: number;
+  hasSuggestions: boolean;
+}
+
+export interface SessionHistoryResponse {
+  turns: HistoryTurn[];
+  activeReplyId: number | null;
+}
+
+export interface EnrichedSuggestionsResponse {
+  suggestions: TrackSuggestion[];
+  message: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -44,5 +63,17 @@ export class SessionService {
 
   bustMemory(): Observable<void> {
     return this.http.delete<void>('/api/session/memory');
+  }
+
+  getHistory(): Observable<SessionHistoryResponse> {
+    return this.http.get<SessionHistoryResponse>('/api/session/history');
+  }
+
+  getEnrichedSuggestions(replyId: number): Observable<EnrichedSuggestionsResponse> {
+    return this.http.get<EnrichedSuggestionsResponse>(`/api/session/reply/${replyId}/suggestions`);
+  }
+
+  setActiveReply(replyId: number): Observable<void> {
+    return this.http.post<void>('/api/session/active-reply', { replyId });
   }
 }

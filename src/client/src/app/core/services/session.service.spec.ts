@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { SessionService, MemoryStatus } from './session.service';
+import { SessionService, MemoryStatus, SessionHistoryResponse } from './session.service';
 
 describe('SessionService', () => {
   let service: SessionService;
@@ -83,6 +83,61 @@ describe('SessionService', () => {
 
       const req = httpMock.expectOne('/api/session/memory');
       expect(req.request.method).toBe('DELETE');
+      req.flush(null, { status: 204, statusText: 'No Content' });
+    });
+  });
+
+  // ── Phase 9 ──────────────────────────────────────────────────────────────
+
+  describe('getHistory', () => {
+    it('GETs /api/session/history', () => {
+      let result: SessionHistoryResponse | undefined;
+
+      service.getHistory().subscribe(h => (result = h));
+
+      const req = httpMock.expectOne('/api/session/history');
+      expect(req.request.method).toBe('GET');
+      req.flush({ turns: [], activeReplyId: null });
+
+      expect(result?.turns).toEqual([]);
+      expect(result?.activeReplyId).toBeNull();
+    });
+
+    it('returns populated turns and activeReplyId', () => {
+      const mockHistory: SessionHistoryResponse = {
+        turns: [
+          { role: 'user', text: 'jazz', timestamp: '2026-05-02T10:00:00Z', eventId: 1, hasSuggestions: false },
+          { role: 'model', text: 'Here is jazz', timestamp: '2026-05-02T10:00:05Z', eventId: 2, hasSuggestions: true },
+        ],
+        activeReplyId: 2,
+      };
+
+      let result: SessionHistoryResponse | undefined;
+      service.getHistory().subscribe(h => (result = h));
+      httpMock.expectOne('/api/session/history').flush(mockHistory);
+
+      expect(result?.turns.length).toBe(2);
+      expect(result?.activeReplyId).toBe(2);
+    });
+  });
+
+  describe('getEnrichedSuggestions', () => {
+    it('GETs /api/session/reply/{replyId}/suggestions', () => {
+      service.getEnrichedSuggestions(7).subscribe();
+
+      const req = httpMock.expectOne('/api/session/reply/7/suggestions');
+      expect(req.request.method).toBe('GET');
+      req.flush({ suggestions: [], message: null });
+    });
+  });
+
+  describe('setActiveReply', () => {
+    it('POSTs replyId to /api/session/active-reply', () => {
+      service.setActiveReply(3).subscribe();
+
+      const req = httpMock.expectOne('/api/session/active-reply');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body.replyId).toBe(3);
       req.flush(null, { status: 204, statusText: 'No Content' });
     });
   });

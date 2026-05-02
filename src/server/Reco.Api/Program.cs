@@ -108,6 +108,7 @@ builder.Services.AddSingleton<IClementineService, ClementineService>();
 builder.Services.AddSingleton<IClementineLauncherService, ClementineLauncherService>();
 builder.Services.AddSingleton<ILastFmGatewayService, LastFmGatewayService>();
 builder.Services.AddSingleton<ISuggestionCacheService, SuggestionCacheService>();
+builder.Services.AddSingleton<ITrackEnrichmentService, TrackEnrichmentService>();
 builder.Services.AddScoped<IRecommendationOrchestrationService, RecommendationOrchestrationService>();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();

@@ -9,6 +9,7 @@ const EMPTY_RESPONSE: RecommendationResponse = {
   message: null,
   providerUsed: 'gemini',
   usedFallback: false,
+  aiReplyEventId: 0,
 };
 
 describe('RecommendationService', () => {
@@ -57,6 +58,7 @@ describe('RecommendationService', () => {
       message: null,
       providerUsed: 'gemini',
       usedFallback: false,
+      aiReplyEventId: 5,
     };
 
     let result: RecommendationResponse | undefined;

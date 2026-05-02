@@ -5,5 +5,6 @@ public record RecommendationResponse(
     IReadOnlyList<TrackSuggestion> Suggestions,
     string? Message,
     string ProviderUsed,
-    bool UsedFallback
+    bool UsedFallback,
+    int AiReplyEventId
 );

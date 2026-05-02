@@ -335,6 +335,7 @@
   line-height: 1.7;
   font-size: 0.9rem;
   font-family: var(--reco-font-bubble);
+  position: relative;
 
   .message--user & {
     background-color: var(--reco-primary);
@@ -356,6 +357,16 @@
     }
   }
 
+  .message--model &--active {
+    outline: 2px solid var(--reco-primary);
+    outline-offset: 2px;
+    background-color: var(--reco-surface-1);
+  }
+
+  &--has-rewind {
+    padding-right: 36px;
+  }
+
   &--loading {
     display: flex;
     align-items: center;
@@ -368,6 +379,32 @@
     background-color: var(--reco-surface-1);
     border: 1px solid var(--reco-border);
     border-bottom-left-radius: 4px;
+  }
+}
+
+.rewind-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  color: var(--reco-text-muted);
+  opacity: 0.4;
+  transition: opacity 0.2s ease, color 0.2s ease;
+
+  --mdc-icon-button-state-layer-size: 26px;
+  --mdc-icon-button-icon-size: 18px;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  &:hover {
+    opacity: 1;
+    color: var(--reco-primary);
   }
 }
 

@@ -45,6 +45,8 @@ public class AlbumArtEnrichmentTests
                          .Returns(Task.FromResult(new SessionContext([], null, new MemoryStatus(0, 25))));
 
         var sessionHistory = Substitute.For<ISessionHistoryService>();
+        sessionHistory.LogAiReplyAsync(Arg.Any<string>(), Arg.Any<DateTimeOffset>())
+                      .Returns(Task.FromResult(1));
 
         return new RecommendationOrchestrationService(
             gemini, ollama, clementine, cache, lastFm,
@@ -52,6 +54,44 @@ public class AlbumArtEnrichmentTests
             Options.Create(new ClementineOptions()),
             Options.Create(new OllamaOptions()),
             NullLogger<RecommendationOrchestrationService>.Instance);
+    }
+
+    private static (RecommendationOrchestrationService Service, ISessionHistoryService SessionHistory)
+    BuildServiceTracked(ILastFmGatewayService lastFm, IReadOnlyList<TrackSuggestion>? tracks = null)
+    {
+        var tracksToReturn = tracks ?? [TrackA, TrackB];
+
+        var gemini = Substitute.For<IGeminiGatewayService>();
+        gemini.GetMusicRecommendationAsync(
+                Arg.Any<string>(), Arg.Any<IReadOnlyList<ConversationTurn>>(), Arg.Any<CancellationToken>())
+              .Returns(Task.FromResult(new MusicRecommendationResult("narrative", tracksToReturn)));
+
+        var ollama = Substitute.For<IOllamaGatewayService>();
+
+        var clementine = Substitute.For<IClementineService>();
+        clementine.LoadInventoryAsync(Arg.Any<CancellationToken>())
+                  .Returns(Task.FromResult<IReadOnlyList<LocalTrack>>([]));
+
+        var cache = Substitute.For<ISuggestionCacheService>();
+        cache.ExcludeRecentlySuggested(Arg.Any<IReadOnlyList<TrackSuggestion>>())
+             .Returns(info => info.ArgAt<IReadOnlyList<TrackSuggestion>>(0));
+
+        var sessionCtxBuilder = Substitute.For<ISessionContextBuilder>();
+        sessionCtxBuilder.BuildAsync(Arg.Any<CancellationToken>())
+                         .Returns(Task.FromResult(new SessionContext([], null, new MemoryStatus(0, 25))));
+
+        var sessionHistory = Substitute.For<ISessionHistoryService>();
+        sessionHistory.LogAiReplyAsync(Arg.Any<string>(), Arg.Any<DateTimeOffset>())
+                      .Returns(Task.FromResult(42));
+
+        var service = new RecommendationOrchestrationService(
+            gemini, ollama, clementine, cache, lastFm,
+            sessionCtxBuilder, sessionHistory,
+            Options.Create(new ClementineOptions()),
+            Options.Create(new OllamaOptions()),
+            NullLogger<RecommendationOrchestrationService>.Instance);
+
+        return (service, sessionHistory);
     }
 
     // ── Tests ────────────────────────────────────────────────────────────────
@@ -112,5 +152,34 @@ public class AlbumArtEnrichmentTests
 
         await lastFm.Received(2).GetAlbumArtUrlAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    // ── Phase 9 ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task AiReplyEventId_is_returned_in_response()
+    {
+        var lastFm = Substitute.For<ILastFmGatewayService>();
+        lastFm.GetAlbumArtUrlAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+              .Returns(Task.FromResult<string?>(null));
+
+        var (service, _) = BuildServiceTracked(lastFm);
+        var response = await service.GetRecommendationsAsync("jazz", cancellationToken: default);
+
+        Assert.Equal(42, response.AiReplyEventId);
+    }
+
+    [Fact]
+    public async Task LogTrackSuggestionsAsync_is_called_when_tracks_returned()
+    {
+        var lastFm = Substitute.For<ILastFmGatewayService>();
+        lastFm.GetAlbumArtUrlAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+              .Returns(Task.FromResult<string?>(null));
+
+        var (service, sessionHistory) = BuildServiceTracked(lastFm);
+        await service.GetRecommendationsAsync("jazz", cancellationToken: default);
+
+        await sessionHistory.Received(1).LogTrackSuggestionsAsync(
+            Arg.Any<IReadOnlyList<RawTrack>>(), Arg.Any<int>());
     }
 }

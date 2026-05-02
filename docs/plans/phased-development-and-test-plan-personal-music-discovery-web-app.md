@@ -163,6 +163,31 @@ The AI stops feeling like a stateless question-answering tool and starts behavin
 
 ---
 
+## Phase 9 — History Hydration & Suggestion Rewind
+
+### Goal
+Put the user first on every page load: restore the full conversation history into the chat panel and re-display the last active suggestion set in the recommendations panel. Every AI bubble gains a rewind button (Material `history` icon) that lets the user view the track suggestions associated with any past reply. The active bubble is visually marked with a double border and persists its identity across page refreshes.
+
+### What changes
+- **`track-suggestions` event type** added to the session log — stores the raw (un-enriched) track list returned by the AI alongside each `ai-reply`, in the same FIFO conversation block
+- **`session_state` table** added to the session DB — persists `active_reply_id` across refreshes
+- **`GET /api/session/history`** — returns all active turns with `hasSuggestions` flag and the current `activeReplyId`
+- **`GET /api/session/reply/{replyId}/suggestions`** — re-enriches (library match + Last.fm art) and returns the suggestions for one reply
+- **`POST /api/session/active-reply`** — persists the active reply choice
+- **`ITrackEnrichmentService`** — extracted from orchestration, shared with the new session endpoint
+- **`AiReplyEventId`** added to `RecommendationResponse` so the frontend can auto-activate the new bubble without an extra round-trip
+
+### Key design decisions
+- "Go back" is **display-only**: the AI always uses the full timeline regardless of which bubble is active
+- Track events (Add to Clementine, YouTube click) fired while viewing old suggestions are recorded normally
+- Raw tracks (title/artist/album only) stored; local library match and album art **recalculated on every load and every rewind**
+- Active reply falls back to the latest AI reply if the stored ID has been evicted
+
+### Main user value
+The app never loses context on refresh. The full conversation is immediately visible, and the user can freely browse any past AI reply's recommendations by clicking the rewind button — without losing their place or having to re-ask.
+
+---
+
 ## 4. Cross-Phase Working Rules
 
 These rules apply to **every phase**.
@@ -905,6 +930,32 @@ At the end of each phase:
 - frontend service test: `SessionService.logTrackEvent` POSTs correct body; `getMemoryStatus` returns parsed response; `bustMemory` sends DELETE
 - frontend component test: `ChatComponent` provides stub `SessionService` so memory HTTP calls do not leak into `httpMock.verify()`
 
+## Phase 9
+
+### Focus
+- On load with history: messages panel shows all active turns in order
+- On load with history: suggestions panel shows re-enriched tracks for the active reply
+- On load with no history: empty state unchanged
+- Active reply ID persists across page refreshes
+- Active reply falls back to latest when stored ID has been evicted
+- AI reply with 0 tracks: no rewind button rendered
+- Rewind button appears top-right on inactive AI bubbles with suggestions
+- Rewind button absent on the active AI bubble
+- Clicking rewind loads that reply's suggestions (re-enriched)
+- Active bubble receives double-border visual treatment
+- New AI reply auto-activates and updates the suggestions panel
+- Track events fired while viewing old suggestions are still recorded
+- `AiReplyEventId` present in recommendations response
+- All Phase 1–8 behaviors still pass
+
+### Minimum tests
+- backend repository test: `InsertTrackSuggestionsAsync` stores JSON; `GetRawSuggestionsAsync` returns parsed tracks; `GetActiveReplyIdAsync` falls back to latest when stored ID is evicted
+- backend controller test: `GET /session/history` returns empty on no history; returns turns with `hasSuggestions` flag when populated
+- backend controller test: `GET /session/reply/{id}/suggestions` re-enriches and returns 200; returns 404 for unknown ID
+- backend orchestration test: `AiReplyEventId` present in response; `LogTrackSuggestionsAsync` called after each recommendation
+- frontend service test: `getHistory`, `getEnrichedSuggestions`, `setActiveReply` call correct endpoints
+- frontend component test: init with history response populates messages; rewind button absent on active bubble; rewind button present on inactive bubble with suggestions
+
 ---
 
 ## 13. Recommended Definition of Done Per Phase
@@ -945,6 +996,9 @@ A phase is done only when all of the following are true:
 
 ## Phase 8
 **Deliverable:** Fluent conversation memory — server-side SQLite session log; FIFO memory capped at 25 AI replies; temporal preamble injected into every AI call; memory progress bar and bust button in the header; track events logged on Clementine add and YouTube click
+
+## Phase 9
+**Deliverable:** History hydration and suggestion rewind — full conversation restored on page load; suggestions panel re-enriched for the active reply; rewind button on every AI bubble to browse any past reply's tracks; active bubble persisted across refreshes with double-border visual treatment
 
 ## Correction model
 After each phase:

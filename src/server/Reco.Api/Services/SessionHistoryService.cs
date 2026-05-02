@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Reco.Api.Configuration;
+using Reco.Api.DTOs;
 using Reco.Api.Models;
 
 namespace Reco.Api.Services;
@@ -24,18 +25,20 @@ public class SessionHistoryService : ISessionHistoryService
             content: prompt,
             artist: null, album: null, title: null, durationSeconds: null);
 
-    public async Task LogAiReplyAsync(string narrative, DateTimeOffset timestamp)
+    public async Task<int> LogAiReplyAsync(string narrative, DateTimeOffset timestamp)
     {
         var id = await _repo.InsertEventAsync("ai-reply", timestamp, UserLabel,
             content: narrative,
             artist: null, album: null, title: null, durationSeconds: null);
 
-        // Close the current open block — every NULL-block active event now belongs to this AI reply
         await _repo.AssignConversationBlockAsync(id);
-
-        // Evict oldest block(s) if memory is over capacity
         await EvictIfNeededAsync();
+
+        return id;
     }
+
+    public Task LogTrackSuggestionsAsync(IReadOnlyList<RawTrack> rawTracks, int aiReplyId) =>
+        _repo.InsertTrackSuggestionsAsync(rawTracks, aiReplyId);
 
     public Task LogTrackEventAsync(
         string eventType,
@@ -51,20 +54,35 @@ public class SessionHistoryService : ISessionHistoryService
     public Task<IReadOnlyList<SessionEvent>> GetActiveEventsAsync() =>
         _repo.GetActiveEventsAsync();
 
+    public async Task<SessionHistoryResponse> GetSessionHistoryAsync()
+    {
+        var turns = await _repo.GetHistoryWithSuggestionsAsync();
+        var activeReplyId = await _repo.GetActiveReplyIdAsync();
+        return new SessionHistoryResponse(turns, activeReplyId);
+    }
+
+    public Task<IReadOnlyList<RawTrack>?> GetRawSuggestionsAsync(int replyId) =>
+        _repo.GetRawSuggestionsAsync(replyId);
+
+    public Task SetActiveReplyIdAsync(int? replyId) =>
+        _repo.SetActiveReplyIdAsync(replyId);
+
     public async Task<MemoryStatus> GetMemoryStatusAsync()
     {
         var used = await _repo.GetActiveAiReplyCountAsync();
         return new MemoryStatus(used, _options.MemorySize);
     }
 
-    public Task BustMemoryAsync() =>
-        _repo.SoftDeleteAllActiveAsync();
+    public async Task BustMemoryAsync()
+    {
+        await _repo.SoftDeleteAllActiveAsync();
+        await _repo.SetActiveReplyIdAsync(null);
+    }
 
     // ── Private ───────────────────────────────────────────────────────────────
 
     private async Task EvictIfNeededAsync()
     {
-        // Loop handles the edge case where MemorySize was reduced between restarts
         while (await _repo.GetActiveAiReplyCountAsync() > _options.MemorySize)
         {
             var oldestBlock = await _repo.GetOldestActiveConversationBlockAsync();

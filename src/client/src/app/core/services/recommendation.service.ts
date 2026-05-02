@@ -25,6 +25,7 @@ export interface RecommendationResponse {
   message: string | null;
   providerUsed: string;
   usedFallback: boolean;
+  aiReplyEventId: number;
 }
 
 @Injectable({ providedIn: 'root' })
