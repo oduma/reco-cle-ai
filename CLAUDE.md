@@ -19,6 +19,8 @@ The app is being built in phases:
 6. **Phase 6:** Reasonic brand identity — product renamed to Reasonic, new logo/favicon, tagline "The music hiding in your mind", overhauled empty/loading states, unified magenta tile styling
 7. **Phase 7:** Dual Inner Voice models — "Inner Whisper" (llama3.1:8b) and "Inner Shout" (gemma4:e4b) selectable via a 3-button toggle; `OLLAMA_MODEL` replaced by `OLLAMA_WHISPER_MODEL` and `OLLAMA_SHOUT_MODEL`
 8. **Phase 8:** Fluent conversation memory — server-side SQLite session log recording user prompts, AI replies, and track interactions (Clementine adds + YouTube clicks); FIFO memory capped at 25 AI replies; AI context rebuilt from the log and enriched with a temporal preamble; all providers instructed to reference listening history in replies and recommendations; memory progress bar + bust button in UI
+9. **Phase 9:** History hydration & suggestion rewind — full conversation restored on page load; every AI bubble gains a rewind button (`history` icon) to swap the suggestions panel to that reply's tracks; active reply identity persisted in `session_state` table across refreshes
+10. **Phase 10:** Progressive retry & auto-focus — transparent 4-attempt retry on transient 502 errors (3/5/7/10 s delays) with a bold in-bubble notice; prompt input auto-focused on load and after each AI response/error
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:
@@ -34,6 +36,8 @@ Use these locations as the primary sources of truth:
 
 ### Architecture
 - `docs/architecture/phase8-session-memory-design.md` — Phase 8 session memory: SQLite schema, FIFO eviction, preamble injection, API surface
+- `docs/architecture/phase9-history-hydration-design.md` — Phase 9 history hydration: session restore on load, rewind button, active reply persistence
+- `docs/architecture/phase10-progressive-retry-and-autofocus-design.md` — Phase 10 progressive retry (502 only, 4 attempts) and auto-focus design
 - `docs/architecture/angular-material-dotnet-api-architecture-best-practices.md`
 - `docs/architecture/logical-component-architecture-personal-music-discovery-engine.md`
 - `docs/architecture/query-execution-sequence-diagram-personal-music-discovery-engine.md`

@@ -1,11 +1,11 @@
-import { Component, computed, signal, ViewChild, ElementRef, AfterViewChecked, OnDestroy, OnInit, effect } from '@angular/core';
+import { Component, computed, signal, ViewChild, ElementRef, AfterViewChecked, AfterViewInit, OnDestroy, OnInit, effect } from '@angular/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, retry, throwError, timer } from 'rxjs';
 import {
   RecommendationService,
   TrackSuggestion,
@@ -64,8 +64,9 @@ const LOADING_PHRASES = [
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
 })
-export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
+export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, OnDestroy {
   @ViewChild('messageList') private messageListRef!: ElementRef<HTMLElement>;
+  @ViewChild('promptInput') private promptInputRef!: ElementRef<HTMLInputElement>;
 
   protected messages = signal<Message[]>([]);
   protected prompt = signal('');
@@ -80,6 +81,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   protected hasSuggestions = signal(false);
 
   protected activeReplyId = signal<number | null>(null);
+  protected retryNotice = signal<string | null>(null);
 
   protected loadingPhrase = signal(LOADING_PHRASES[0]);
   protected tryLineHint = signal('');
@@ -97,8 +99,11 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   protected memoryHigh  = computed(() => this.memoryFill() > 0.8);
 
   private shouldScroll = false;
+  private shouldFocusInput = false;
   private typewriterTimeout: ReturnType<typeof setTimeout> | null = null;
   private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private readonly RETRY_DELAYS = [3000, 5000, 7000, 10000];
 
   // Prompt history (terminal-style up/down navigation)
   private readonly HISTORY_LIMIT = 50;
@@ -136,6 +141,10 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     await this.hydrate();
   }
 
+  ngAfterViewInit(): void {
+    this.focusPromptInput();
+  }
+
   ngOnDestroy(): void {
     this.typewriterStop();
     if (this.fallbackTimer !== null) clearTimeout(this.fallbackTimer);
@@ -145,6 +154,12 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     if (this.shouldScroll) {
       this.scrollToBottom();
       this.shouldScroll = false;
+    }
+    if (this.shouldFocusInput) {
+      this.shouldFocusInput = false;
+      // Defer focus outside the current change-detection cycle to avoid
+      // ExpressionChangedAfterItHasBeenCheckedError when onFocus mutates signals.
+      setTimeout(() => this.promptInputRef?.nativeElement?.focus(), 0);
     }
   }
 
@@ -192,6 +207,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     this.loading.set(true);
     this.error.set(null);
     this.errorIsRateLimit.set(false);
+    this.retryNotice.set(null);
     this.usedFallback.set(false);
     this.shouldScroll = true;
 
@@ -200,8 +216,18 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     this.suggestionsMessage.set(null);
     this.hasSuggestions.set(true);
 
-    this.recommendationService.getRecommendations(text, this.provider()).subscribe({
+    this.recommendationService.getRecommendations(text, this.provider()).pipe(
+      retry({
+        count: 4,
+        delay: (err, retryCount) => {
+          if (!this.isRetryableError(err)) return throwError(() => err);
+          this.retryNotice.set(`The AI is a bit busy right now… retrying (${retryCount}/4)`);
+          return timer(this.RETRY_DELAYS[retryCount - 1]);
+        },
+      }),
+    ).subscribe({
       next: response => {
+        this.retryNotice.set(null);
         this.activeReplyId.set(response.aiReplyEventId);
         this.messages.update(msgs => [
           ...msgs,
@@ -219,6 +245,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
         this.suggestionsLoading.set(false);
         this.refreshMemory();
         this.shouldScroll = true;
+        this.focusPromptInput();
 
         if (response.usedFallback) {
           this.usedFallback.set(true);
@@ -227,12 +254,14 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
         }
       },
       error: err => {
+        this.retryNotice.set(null);
         const isRateLimit = err.status === 429;
         this.errorIsRateLimit.set(isRateLimit);
         this.error.set(err.error?.error ?? 'Something went wrong. Please try again.');
         this.loading.set(false);
         this.suggestionsError.set(true);
         this.suggestionsLoading.set(false);
+        this.focusPromptInput();
       },
     });
   }
@@ -403,6 +432,15 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   private randomPhrase(): string {
     return LOADING_PHRASES[Math.floor(Math.random() * LOADING_PHRASES.length)];
+  }
+
+  private focusPromptInput(): void {
+    this.shouldFocusInput = true;
+  }
+
+  // Only 502 (gateway busy / AI overloaded) is treated as transient and retried.
+  private isRetryableError(err: unknown): boolean {
+    return (err as { status?: number })?.status === 502;
   }
 
   private scrollToBottom(): void {

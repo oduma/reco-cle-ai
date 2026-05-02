@@ -369,8 +369,8 @@
 
   &--loading {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
     padding: 10px 14px;
     font-style: italic;
     font-size: 0.875rem;
@@ -426,6 +426,20 @@
 }
 
 // ── Loading animation ─────────────────────────────────────────────────────────
+
+.loading-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.retry-notice {
+  font-style: normal;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: var(--reco-font);
+  color: var(--reco-warning);
+}
 
 .loading-icon {
   font-size: 18px;

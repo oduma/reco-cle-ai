@@ -89,8 +89,13 @@
         @if (loading()) {
           <div class="message message--model">
             <div class="message-bubble message-bubble--loading" role="status" aria-live="polite">
-              <mat-icon class="loading-icon" aria-hidden="true">music_note</mat-icon>
-              <span class="loading-phrase">{{ loadingPhrase() }}</span>
+              <div class="loading-row">
+                <mat-icon class="loading-icon" aria-hidden="true">music_note</mat-icon>
+                <span class="loading-phrase">{{ loadingPhrase() }}</span>
+              </div>
+              @if (retryNotice()) {
+                <span class="retry-notice">{{ retryNotice() }}</span>
+              }
             </div>
           </div>
         }
@@ -107,6 +112,7 @@
         <mat-form-field class="prompt-field" [class.prompt-field--hint]="isHintPreview()" appearance="outline" subscriptSizing="dynamic">
           <mat-label>Speak your mind if you want to hear me</mat-label>
           <input
+            #promptInput
             matInput
             [value]="prompt()"
             (input)="updatePrompt($event)"

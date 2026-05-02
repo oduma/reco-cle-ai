@@ -188,6 +188,30 @@ The app never loses context on refresh. The full conversation is immediately vis
 
 ---
 
+## Phase 10 — Progressive Retry & Auto-focus
+
+### Goal
+Improve resilience and keyboard-first usability with two targeted UX improvements.
+
+**Progressive retry:** when the AI backend returns a 502 (transient overload), the frontend retries transparently up to 4 times with increasing delays (3 s, 5 s, 7 s, 10 s). During retries the loading bubble shows a bold notice: "The AI is a bit busy right now… retrying (n/4)". The error banner is only shown if all 4 retries fail. Non-transient errors (429, 500, 400, etc.) surface immediately as before.
+
+**Auto-focus:** the prompt input receives keyboard focus automatically — on initial page load, after a successful AI response, and after an error. The user never has to click into the input to continue typing.
+
+### What changes
+- **`ChatComponent.send()`** — RxJS `retry({ count: 4, delay })` operator wraps the recommendations observable; only 502 triggers a retry; a `retryNotice` signal is set/cleared around each attempt
+- **`retryNotice` signal** — displayed inside the loading bubble as a bold warning-coloured line below the cycling phrase
+- **`@ViewChild('promptInput')` + `shouldFocusInput` flag** — same deferred-flag pattern as `shouldScroll`; focus is applied in `ngAfterViewChecked` via `setTimeout` to stay outside the change-detection cycle
+- **`ngAfterViewInit`** — triggers initial focus on page load
+
+### Key design decisions
+- Only 502 is retried — it specifically indicates an overloaded AI gateway; 429 (rate limit), 500 (server error), 400 (bad request) are not transient and should surface immediately
+- Focus is deferred with `setTimeout(fn, 0)` to avoid `ExpressionChangedAfterItHasBeenCheckedError` when `onFocus` mutates signals
+
+### Main user value
+The AI's occasional busyness is handled gracefully and transparently rather than surfacing as an immediate error. The prompt box is always ready for the next thought — no mouse click needed.
+
+---
+
 ## 4. Cross-Phase Working Rules
 
 These rules apply to **every phase**.

@@ -155,7 +155,7 @@ describe('ChatComponent', () => {
 
     httpMock.expectOne('/api/recommendations').flush(
       { error: 'The AI service is temporarily unavailable. Please try again.' },
-      { status: 502, statusText: 'Bad Gateway' },
+      { status: 500, statusText: 'Internal Server Error' },
     );
     fixture.detectChanges();
     await fixture.whenStable();
