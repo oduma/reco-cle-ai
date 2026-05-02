@@ -1,21 +1,23 @@
-import { Component, signal, ViewChild, ElementRef, AfterViewChecked, OnDestroy, OnInit, effect } from '@angular/core';
+import { Component, computed, signal, ViewChild, ElementRef, AfterViewChecked, OnDestroy, OnInit, effect } from '@angular/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import {
   RecommendationService,
-  ConversationTurn,
   TrackSuggestion,
   Provider,
 } from '../../core/services/recommendation.service';
+import { SessionService } from '../../core/services/session.service';
 import { SuggestionsPanelComponent } from './suggestions-panel/suggestions-panel.component';
 import { BoldMarkdownPipe } from '../../core/pipes/bold-markdown.pipe';
 
 interface Message {
   role: 'user' | 'model';
   text: string;
+  timestamp: Date;
 }
 
 const PROVIDER_KEY = 'reco-provider';
@@ -52,6 +54,7 @@ const LOADING_PHRASES = [
     MatButtonModule,
     MatButtonToggleModule,
     MatIconModule,
+    MatTooltipModule,
     SuggestionsPanelComponent,
     BoldMarkdownPipe,
   ],
@@ -81,7 +84,13 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   );
   protected usedFallback = signal(false);
 
-  private history: ConversationTurn[] = [];
+  protected memoryUsed  = signal(0);
+  protected memoryTotal = signal(25);
+  protected memoryFill  = computed(() =>
+    this.memoryTotal() > 0 ? this.memoryUsed() / this.memoryTotal() : 0
+  );
+  protected memoryHigh  = computed(() => this.memoryFill() > 0.8);
+
   private shouldScroll = false;
   private typewriterTimeout: ReturnType<typeof setTimeout> | null = null;
   private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -94,7 +103,10 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   protected isHintPreview = signal(false);
 
-  constructor(private recommendationService: RecommendationService) {
+  constructor(
+    private recommendationService: RecommendationService,
+    private sessionService: SessionService,
+  ) {
     effect(() => {
       if (this.loading()) {
         this.typewriterStart(this.randomPhrase());
@@ -105,6 +117,7 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
   }
 
   async ngOnInit(): Promise<void> {
+    this.refreshMemory();
     try {
       const res = await fetch('/trylines.txt');
       const text = await res.text();
@@ -134,11 +147,32 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     localStorage.setItem(PROVIDER_KEY, value);
   }
 
+  protected refreshMemory(): void {
+    this.sessionService.getMemoryStatus().subscribe({
+      next: s => {
+        this.memoryUsed.set(s.used);
+        this.memoryTotal.set(s.total);
+      },
+      error: () => {},
+    });
+  }
+
+  protected bustMemory(): void {
+    if (!confirm('Clear all session memory? The AI will start fresh on your next question.')) return;
+    this.sessionService.bustMemory().subscribe({
+      next: () => {
+        this.memoryUsed.set(0);
+        this.refreshMemory();
+      },
+      error: () => {},
+    });
+  }
+
   protected send(): void {
     const text = this.prompt().trim();
     if (!text || this.loading()) return;
 
-    this.messages.update(msgs => [...msgs, { role: 'user', text }]);
+    this.messages.update(msgs => [...msgs, { role: 'user', text, timestamp: new Date() }]);
 
     // Record in history, skipping consecutive duplicates
     if (this.promptHistory[this.promptHistory.length - 1] !== text) {
@@ -160,17 +194,17 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
     this.suggestionsMessage.set(null);
     this.hasSuggestions.set(true);
 
-    this.recommendationService.getRecommendations(text, this.history, this.provider()).subscribe({
+    this.recommendationService.getRecommendations(text, this.provider()).subscribe({
       next: response => {
         this.messages.update(msgs => [
           ...msgs,
-          { role: 'model', text: response.narrative },
+          { role: 'model', text: response.narrative, timestamp: new Date() },
         ]);
-        this.history = response.history;
         this.suggestions.set(response.suggestions);
         this.suggestionsMessage.set(response.message);
         this.loading.set(false);
         this.suggestionsLoading.set(false);
+        this.refreshMemory();
         this.shouldScroll = true;
 
         if (response.usedFallback) {
@@ -265,6 +299,14 @@ export class ChatComponent implements OnInit, AfterViewChecked, OnDestroy {
       this.isHintPreview.set(false);
       this.prompt.set(value);
     }
+  }
+
+  protected formatMessageTime(ts: Date): string {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const hm = `${pad(ts.getHours())}:${pad(ts.getMinutes())}`;
+    if (ts.toDateString() === now.toDateString()) return hm;
+    return `${pad(ts.getDate())}/${pad(ts.getMonth() + 1)}/${ts.getFullYear()} ${hm}`;
   }
 
   private typewriterStart(phrase: string): void {

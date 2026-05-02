@@ -2,11 +2,6 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
-export interface ConversationTurn {
-  role: 'user' | 'model';
-  text: string;
-}
-
 export interface TrackSuggestion {
   title: string;
   artist: string;
@@ -14,20 +9,19 @@ export interface TrackSuggestion {
   inLocalLibrary: boolean;
   filePath?: string;
   albumArtUrl?: string | null;
+  durationSeconds?: number | null;
 }
 
 export type Provider = 'gemini' | 'inner-whisper' | 'inner-shout';
 
 export interface RecommendationRequest {
   prompt: string;
-  history: ConversationTurn[];
   provider: Provider;
 }
 
 export interface RecommendationResponse {
   narrative: string;
   suggestions: TrackSuggestion[];
-  history: ConversationTurn[];
   message: string | null;
   providerUsed: string;
   usedFallback: boolean;
@@ -39,12 +33,10 @@ export class RecommendationService {
 
   getRecommendations(
     prompt: string,
-    history: ConversationTurn[],
     provider: Provider = 'gemini',
   ): Observable<RecommendationResponse> {
     return this.http.post<RecommendationResponse>('/api/recommendations', {
       prompt,
-      history,
       provider,
     } satisfies RecommendationRequest);
   }

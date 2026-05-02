@@ -40,8 +40,15 @@ public class ProviderRoutingTests
 
         var lastFm = Substitute.For<ILastFmGatewayService>();
 
+        var sessionCtxBuilder = Substitute.For<ISessionContextBuilder>();
+        sessionCtxBuilder.BuildAsync(Arg.Any<CancellationToken>())
+                         .Returns(Task.FromResult(new SessionContext([], null, new MemoryStatus(0, 25))));
+
+        var sessionHistory = Substitute.For<ISessionHistoryService>();
+
         var service = new RecommendationOrchestrationService(
             gemini, ollama, clementine, cache, lastFm,
+            sessionCtxBuilder, sessionHistory,
             Options.Create(new ClementineOptions()),
             Options.Create(ollamaOptions ?? new OllamaOptions()),
             NullLogger<RecommendationOrchestrationService>.Instance);
@@ -55,7 +62,7 @@ public class ProviderRoutingTests
         var opts = new OllamaOptions { WhisperModel = "llama3.1:8b", ShoutModel = "gemma4:e4b" };
         var (_, ollama, service) = BuildService(opts);
 
-        await service.GetRecommendationsAsync("jazz", [], "inner-whisper");
+        await service.GetRecommendationsAsync("jazz", "inner-whisper");
 
         await ollama.Received(1).GetMusicRecommendationAsync(
             Arg.Any<string>(), Arg.Any<IReadOnlyList<ConversationTurn>>(),
@@ -68,7 +75,7 @@ public class ProviderRoutingTests
         var opts = new OllamaOptions { WhisperModel = "llama3.1:8b", ShoutModel = "gemma4:e4b" };
         var (_, ollama, service) = BuildService(opts);
 
-        await service.GetRecommendationsAsync("jazz", [], "inner-shout");
+        await service.GetRecommendationsAsync("jazz", "inner-shout");
 
         await ollama.Received(1).GetMusicRecommendationAsync(
             Arg.Any<string>(), Arg.Any<IReadOnlyList<ConversationTurn>>(),
@@ -80,7 +87,7 @@ public class ProviderRoutingTests
     {
         var (gemini, ollama, service) = BuildService();
 
-        await service.GetRecommendationsAsync("jazz", [], "gemini");
+        await service.GetRecommendationsAsync("jazz", "gemini");
 
         await gemini.Received(1).GetMusicRecommendationAsync(
             Arg.Any<string>(), Arg.Any<IReadOnlyList<ConversationTurn>>(), Arg.Any<CancellationToken>());
@@ -94,7 +101,7 @@ public class ProviderRoutingTests
     {
         var (_, _, service) = BuildService();
 
-        var response = await service.GetRecommendationsAsync("jazz", [], "inner-whisper");
+        var response = await service.GetRecommendationsAsync("jazz", "inner-whisper");
 
         Assert.Equal("inner-whisper", response.ProviderUsed);
     }
@@ -104,7 +111,7 @@ public class ProviderRoutingTests
     {
         var (_, _, service) = BuildService();
 
-        var response = await service.GetRecommendationsAsync("jazz", [], "inner-shout");
+        var response = await service.GetRecommendationsAsync("jazz", "inner-shout");
 
         Assert.Equal("inner-shout", response.ProviderUsed);
     }

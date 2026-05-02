@@ -133,6 +133,36 @@ Users can choose the personality and speed of the local AI voice. Inner Whisper 
 
 ---
 
+## Phase 8 — Fluent Conversation Memory
+
+### Goal
+Give the AI a persistent, time-aware memory of the full session — what the user said, what the AI recommended, and what the user chose to listen to. The AI should feel like a continuous conversation partner that remembers everything and naturally references the user's listening behaviour in its replies and recommendations.
+
+The memory is stored in a server-side SQLite database. It is capped at the last 25 AI replies (FIFO soft-delete). The user can see memory usage via a progress bar in the header and flush it with a single button.
+
+### What is recorded
+- **`user-chat`** — every prompt the user sends, with timestamp
+- **`ai-reply`** — every AI narrative response, with timestamp
+- **`track-added`** — every "Add to Clementine" action (one event per track), with artist / album / title / duration / timestamp
+- **`track-youtube`** — every YouTube link click on a discovery tile, with the same fields
+
+### How the AI receives context (Option A — Preamble Injection)
+The conversation history (user/model turns) is reconstructed from the SQLite log. For each new prompt, a temporal preamble is prepended to the user's message. The preamble contains:
+- The full session timeline (all active events, timestamped)
+- A "since your last reply" window listing recent track interactions
+- A calculated note: "I may still be listening" if queued track time > elapsed time, or "I have most likely finished" otherwise
+
+All AI providers (Gemini, Ollama Whisper, Ollama Shout, future providers) receive a system-level instruction to reference listening history in every response.
+
+### Listening time calculation
+- Local tracks use `lengthnanosec` from Clementine's SQLite database
+- Discovery and YouTube tracks use a configurable default (210 seconds = 3.5 min)
+
+### Main user value
+The AI stops feeling like a stateless question-answering tool and starts behaving like a music companion that knows what you have been listening to, for how long, and what mood or taste it suggests. Recommendations become genuinely personal over a session.
+
+---
+
 ## 4. Cross-Phase Working Rules
 
 These rules apply to **every phase**.
@@ -840,6 +870,41 @@ At the end of each phase:
 - frontend component test: right-panel shows loading phrase when loading and no suggestions yet
 - frontend component test: local tile has full opacity; discovery tile has reduced opacity wrapper; YouTube button unaffected
 
+## Phase 7
+
+### Focus
+- 3-button toggle renders "Inner Whisper", "Inner Shout", "Cosmic Voice" with correct icons
+- `POST /api/recommendations` with `provider: "inner-whisper"` routes to `OLLAMA_WHISPER_MODEL`
+- `POST /api/recommendations` with `provider: "inner-shout"` routes to `OLLAMA_SHOUT_MODEL`
+- Provider selection persists via `localStorage` across page loads
+- All Phase 1–6 behaviors still pass
+
+### Minimum tests
+- frontend component test: three provider toggle buttons render with correct labels
+- backend unit test: `inner-whisper` routes to Ollama whisper model, `inner-shout` routes to Ollama shout model
+
+## Phase 8
+
+### Focus
+- `POST /api/session/events` records track-added and track-youtube events in SQLite
+- `GET /api/session/memory` returns `{ used, total }` correctly
+- `DELETE /api/session/memory` busts memory and resets used to 0
+- Preamble injected into prompt when history exists; absent on first turn
+- AI reply and user prompt both recorded after each recommendation call
+- FIFO eviction caps active AI replies at SESSION_MEMORY_SIZE (default 25)
+- Memory progress bar visible in header; updates after each exchange
+- Bust button shows confirmation, clears memory, and refreshes bar
+- Track events fired on "Add to Clementine" (per card and add-all) and YouTube click
+- All Phase 1–7 behaviors still pass
+
+### Minimum tests
+- backend unit test: `SessionContextBuilder` maps user-chat/ai-reply to ConversationTurns, excludes track events from history
+- backend unit test: preamble is null when event log is empty; contains timeline and "Since your last reply" section when populated
+- backend unit test: listening estimate correctly reports "still listening" vs "finished"
+- backend unit test: provider routing tests include `ISessionContextBuilder` and `ISessionHistoryService` mocks
+- frontend service test: `SessionService.logTrackEvent` POSTs correct body; `getMemoryStatus` returns parsed response; `bustMemory` sends DELETE
+- frontend component test: `ChatComponent` provides stub `SessionService` so memory HTTP calls do not leak into `httpMock.verify()`
+
 ---
 
 ## 13. Recommended Definition of Done Per Phase
@@ -877,6 +942,9 @@ A phase is done only when all of the following are true:
 
 ## Phase 7
 **Deliverable:** Dual Inner Voice models — "Inner Whisper" (llama3.1:8b) and "Inner Shout" (gemma4:e4b) selectable from a 3-button toggle alongside Cosmic Voice (Gemini)
+
+## Phase 8
+**Deliverable:** Fluent conversation memory — server-side SQLite session log; FIFO memory capped at 25 AI replies; temporal preamble injected into every AI call; memory progress bar and bust button in the header; track events logged on Clementine add and YouTube click
 
 ## Correction model
 After each phase:

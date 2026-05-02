@@ -3,17 +3,21 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideZonelessChangeDetection } from '@angular/core';
+import { of } from 'rxjs';
 import { vi } from 'vitest';
 import { ChatComponent } from './chat.component';
 import { RecommendationService, RecommendationResponse } from '../../core/services/recommendation.service';
+import { SessionService } from '../../core/services/session.service';
+
+const SESSION_SERVICE_STUB = {
+  getMemoryStatus: () => of({ used: 0, total: 25 }),
+  logTrackEvent: () => of(void 0),
+  bustMemory: () => of(void 0),
+};
 
 const RECO_OK: RecommendationResponse = {
   narrative: 'Try Miles Davis.',
   suggestions: [],
-  history: [
-    { role: 'user', text: 'jazz' },
-    { role: 'model', text: 'Try Miles Davis.' },
-  ],
   message: null,
   providerUsed: 'gemini',
   usedFallback: false,
@@ -22,10 +26,6 @@ const RECO_OK: RecommendationResponse = {
 const RECO_WITH_TRACKS: RecommendationResponse = {
   narrative: 'Try Blue in Green by Miles Davis.',
   suggestions: [{ title: 'Blue in Green', artist: 'Miles Davis', album: 'Kind of Blue', inLocalLibrary: false }],
-  history: [
-    { role: 'user', text: 'jazz' },
-    { role: 'model', text: 'Try Blue in Green by Miles Davis.' },
-  ],
   message: null,
   providerUsed: 'gemini',
   usedFallback: false,
@@ -54,6 +54,7 @@ describe('ChatComponent', () => {
         provideHttpClientTesting(),
         provideAnimationsAsync(),
         RecommendationService,
+        { provide: SessionService, useValue: SESSION_SERVICE_STUB },
       ],
     }).compileComponents();
 
@@ -99,7 +100,7 @@ describe('ChatComponent', () => {
       '.message--user .message-bubble',
     ) as NodeListOf<HTMLElement>;
     expect(messages.length).toBe(1);
-    expect(messages[0].textContent?.trim()).toBe('recommend some jazz');
+    expect(messages[0].textContent?.trim()).toContain('recommend some jazz');
 
     flush();
     fixture.detectChanges();
@@ -171,17 +172,12 @@ describe('ChatComponent', () => {
     await fixture.whenStable();
   });
 
-  it('sends updated history on the second prompt', async () => {
+  it('prompt body contains no history field after Phase 8', async () => {
     typeAndSend('jazz');
-    flush(RECO_OK);
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    typeAndSend('something more upbeat');
     await fixture.whenStable();
 
     const req = httpMock.expectOne('/api/recommendations');
-    expect(req.request.body.history.length).toBe(2);
+    expect(req.request.body.history).toBeUndefined();
     req.flush(RECO_OK);
     fixture.detectChanges();
     await fixture.whenStable();

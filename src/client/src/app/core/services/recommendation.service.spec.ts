@@ -6,7 +6,6 @@ import { RecommendationService, RecommendationResponse } from './recommendation.
 const EMPTY_RESPONSE: RecommendationResponse = {
   narrative: '',
   suggestions: [],
-  history: [],
   message: null,
   providerUsed: 'gemini',
   usedFallback: false,
@@ -26,40 +25,34 @@ describe('RecommendationService', () => {
 
   afterEach(() => httpMock.verify());
 
-  it('POSTs to /api/recommendations with prompt and history', () => {
-    const history = [{ role: 'user' as const, text: 'previous' }];
-    service.getRecommendations('melancholic jazz', history).subscribe();
+  it('POSTs to /api/recommendations with prompt', () => {
+    service.getRecommendations('melancholic jazz').subscribe();
 
     const req = httpMock.expectOne('/api/recommendations');
     expect(req.request.method).toBe('POST');
     expect(req.request.body.prompt).toBe('melancholic jazz');
-    expect(req.request.body.history).toEqual(history);
     req.flush(EMPTY_RESPONSE);
   });
 
   it('sends inner-whisper provider value when specified', () => {
-    service.getRecommendations('jazz', [], 'inner-whisper').subscribe();
+    service.getRecommendations('jazz', 'inner-whisper').subscribe();
     const req = httpMock.expectOne('/api/recommendations');
     expect(req.request.body.provider).toBe('inner-whisper');
     req.flush(EMPTY_RESPONSE);
   });
 
   it('sends inner-shout provider value when specified', () => {
-    service.getRecommendations('jazz', [], 'inner-shout').subscribe();
+    service.getRecommendations('jazz', 'inner-shout').subscribe();
     const req = httpMock.expectOne('/api/recommendations');
     expect(req.request.body.provider).toBe('inner-shout');
     req.flush(EMPTY_RESPONSE);
   });
 
-  it('returns narrative, suggestions and updated history from the API', () => {
+  it('returns narrative and suggestions from the API', () => {
     const mockResponse: RecommendationResponse = {
       narrative: 'Try Blue in Green by Miles Davis.',
       suggestions: [
         { title: 'Blue in Green', artist: 'Miles Davis', album: 'Kind of Blue', inLocalLibrary: false },
-      ],
-      history: [
-        { role: 'user', text: 'jazz?' },
-        { role: 'model', text: 'Try Blue in Green by Miles Davis.' },
       ],
       message: null,
       providerUsed: 'gemini',
@@ -67,12 +60,11 @@ describe('RecommendationService', () => {
     };
 
     let result: RecommendationResponse | undefined;
-    service.getRecommendations('jazz?', []).subscribe(r => (result = r));
+    service.getRecommendations('jazz?').subscribe(r => (result = r));
     httpMock.expectOne('/api/recommendations').flush(mockResponse);
 
     expect(result?.narrative).toContain('Blue in Green');
     expect(result?.suggestions.length).toBe(1);
     expect(result?.suggestions[0].album).toBe('Kind of Blue');
-    expect(result?.history.length).toBe(2);
   });
 });

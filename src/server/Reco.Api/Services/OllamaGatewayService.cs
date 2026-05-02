@@ -43,7 +43,8 @@ public class OllamaGatewayService : IOllamaGatewayService
         "    {\"title\": \"Song Name\", \"artist\": \"Artist Name\", \"album\": \"Album Name\"},\n" +
         "    {\"title\": \"Another Song\", \"artist\": \"Another Artist\"}\n" +
         "  ]\n" +
-        "}";
+        "}" +
+        AiSystemInstructions.SessionMemoryInstruction;
 
     public Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,

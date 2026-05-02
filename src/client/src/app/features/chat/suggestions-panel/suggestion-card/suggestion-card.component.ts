@@ -4,6 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { TrackSuggestion } from '../../../../core/services/recommendation.service';
 import { PlaylistService } from '../../../../core/services/playlist.service';
+import { SessionService } from '../../../../core/services/session.service';
 
 @Component({
   selector: 'app-suggestion-card',
@@ -24,7 +25,11 @@ export class SuggestionCardComponent {
     return `https://www.youtube.com/results?search_query=${q}`;
   });
 
-  constructor(private snackBar: MatSnackBar, private playlistService: PlaylistService) {}
+  constructor(
+    private snackBar: MatSnackBar,
+    private playlistService: PlaylistService,
+    private sessionService: SessionService,
+  ) {}
 
   onArtError(): void {
     this.artFailed.set(true);
@@ -39,6 +44,12 @@ export class SuggestionCardComponent {
     );
   }
 
+  onYouTubeClick(): void {
+    const s = this.suggestion();
+    this.sessionService.logTrackEvent('track-youtube', s.artist, s.album ?? null, s.title, s.durationSeconds ?? null)
+      .subscribe({ error: () => {} });
+  }
+
   addToClementine(): void {
     const s = this.suggestion();
     if (!s.filePath || this.addingToPlaylist()) return;
@@ -48,6 +59,8 @@ export class SuggestionCardComponent {
       next: () => {
         this.snackBar.open(`Added to Clementine: ${s.artist} – ${s.title}`, undefined, { duration: 2000 });
         this.addingToPlaylist.set(false);
+        this.sessionService.logTrackEvent('track-added', s.artist, s.album ?? null, s.title, s.durationSeconds ?? null)
+          .subscribe({ error: () => {} });
       },
       error: () => {
         this.snackBar.open('Could not add to Clementine playlist', 'Dismiss', { duration: 4000 });

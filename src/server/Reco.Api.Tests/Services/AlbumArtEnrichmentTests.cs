@@ -40,8 +40,15 @@ public class AlbumArtEnrichmentTests
         cache.ExcludeRecentlySuggested(Arg.Any<IReadOnlyList<TrackSuggestion>>())
              .Returns(info => info.ArgAt<IReadOnlyList<TrackSuggestion>>(0));
 
+        var sessionCtxBuilder = Substitute.For<ISessionContextBuilder>();
+        sessionCtxBuilder.BuildAsync(Arg.Any<CancellationToken>())
+                         .Returns(Task.FromResult(new SessionContext([], null, new MemoryStatus(0, 25))));
+
+        var sessionHistory = Substitute.For<ISessionHistoryService>();
+
         return new RecommendationOrchestrationService(
             gemini, ollama, clementine, cache, lastFm,
+            sessionCtxBuilder, sessionHistory,
             Options.Create(new ClementineOptions()),
             Options.Create(new OllamaOptions()),
             NullLogger<RecommendationOrchestrationService>.Instance);
@@ -59,7 +66,7 @@ public class AlbumArtEnrichmentTests
               .Returns(Task.FromResult<string?>(null));
 
         var response = await BuildService(lastFm)
-            .GetRecommendationsAsync("jazz", [], cancellationToken: default);
+            .GetRecommendationsAsync("jazz", cancellationToken: default);
 
         var miles    = response.Suggestions.Single(t => t.Artist == "Miles Davis");
         var coltrane = response.Suggestions.Single(t => t.Artist == "John Coltrane");
@@ -76,7 +83,7 @@ public class AlbumArtEnrichmentTests
               .Returns(Task.FromResult<string?>(null));
 
         var response = await BuildService(lastFm)
-            .GetRecommendationsAsync("jazz", [], cancellationToken: default);
+            .GetRecommendationsAsync("jazz", cancellationToken: default);
 
         Assert.Equal(2, response.Suggestions.Count);
         Assert.All(response.Suggestions, t => Assert.Null(t.AlbumArtUrl));
@@ -88,7 +95,7 @@ public class AlbumArtEnrichmentTests
         var lastFm = Substitute.For<ILastFmGatewayService>();
 
         await BuildService(lastFm, tracks: [])
-            .GetRecommendationsAsync("jazz", [], cancellationToken: default);
+            .GetRecommendationsAsync("jazz", cancellationToken: default);
 
         await lastFm.DidNotReceive().GetAlbumArtUrlAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
@@ -101,7 +108,7 @@ public class AlbumArtEnrichmentTests
         lastFm.GetAlbumArtUrlAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
               .Returns(Task.FromResult<string?>(null));
 
-        await BuildService(lastFm).GetRecommendationsAsync("jazz", [], cancellationToken: default);
+        await BuildService(lastFm).GetRecommendationsAsync("jazz", cancellationToken: default);
 
         await lastFm.Received(2).GetAlbumArtUrlAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());

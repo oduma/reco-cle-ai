@@ -6,5 +6,6 @@ public record TrackSuggestion(
     string? Album,
     bool InLocalLibrary = false,
     string? FilePath = null,
-    string? AlbumArtUrl = null
+    string? AlbumArtUrl = null,
+    double? DurationSeconds = null
 );

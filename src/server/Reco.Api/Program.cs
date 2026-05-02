@@ -75,6 +75,24 @@ builder.Services.Configure<LastFmOptions>(options =>
     if (!string.IsNullOrWhiteSpace(baseUrl)) options.BaseUrl = baseUrl;
 });
 
+builder.Services.Configure<SessionMemoryOptions>(options =>
+{
+    builder.Configuration.GetSection(SessionMemoryOptions.SectionName).Bind(options);
+
+    var dbPath = builder.Configuration["SESSION_DB_PATH"];
+    if (!string.IsNullOrWhiteSpace(dbPath)) options.DbPath = dbPath;
+
+    if (int.TryParse(builder.Configuration["SESSION_MEMORY_SIZE"], out var memSize) && memSize > 0)
+        options.MemorySize = memSize;
+
+    if (double.TryParse(builder.Configuration["SESSION_DEFAULT_TRACK_DURATION_SECONDS"], out var dur) && dur > 0)
+        options.DefaultTrackDurationSeconds = dur;
+});
+
+builder.Services.AddSingleton<ISessionHistoryRepository, SessionHistoryRepository>();
+builder.Services.AddSingleton<ISessionHistoryService, SessionHistoryService>();
+builder.Services.AddSingleton<ISessionContextBuilder, SessionContextBuilder>();
+
 builder.Services.AddHttpClient<GeminiGatewayService>();
 builder.Services.AddScoped<IGeminiGatewayService>(sp => sp.GetRequiredService<GeminiGatewayService>());
 
@@ -104,6 +122,11 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Ensure the session history SQLite database and table exist
+await app.Services
+    .GetRequiredService<ISessionHistoryRepository>()
+    .EnsureCreatedAsync();
 
 var geminiKey = app.Configuration["GEMINI_API_KEY"];
 if (string.IsNullOrWhiteSpace(geminiKey))

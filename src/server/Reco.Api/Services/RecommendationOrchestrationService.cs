@@ -17,6 +17,8 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
     private readonly IClementineService _clementine;
     private readonly ISuggestionCacheService _suggestionCache;
     private readonly ILastFmGatewayService _lastFm;
+    private readonly ISessionContextBuilder _sessionContextBuilder;
+    private readonly ISessionHistoryService _sessionHistory;
     private readonly ClementineOptions _clementineOptions;
     private readonly OllamaOptions _ollamaOptions;
     private readonly ILogger<RecommendationOrchestrationService> _logger;
@@ -27,6 +29,8 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         IClementineService clementine,
         ISuggestionCacheService suggestionCache,
         ILastFmGatewayService lastFm,
+        ISessionContextBuilder sessionContextBuilder,
+        ISessionHistoryService sessionHistory,
         IOptions<ClementineOptions> clementineOptions,
         IOptions<OllamaOptions> ollamaOptions,
         ILogger<RecommendationOrchestrationService> logger)
@@ -36,6 +40,8 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         _clementine = clementine;
         _suggestionCache = suggestionCache;
         _lastFm = lastFm;
+        _sessionContextBuilder = sessionContextBuilder;
+        _sessionHistory = sessionHistory;
         _clementineOptions = clementineOptions.Value;
         _ollamaOptions = ollamaOptions.Value;
         _logger = logger;
@@ -43,7 +49,6 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
 
     public async Task<RecommendationResponse> GetRecommendationsAsync(
         string prompt,
-        IReadOnlyList<ConversationTurn> history,
         string? preferredProvider = null,
         CancellationToken cancellationToken = default)
     {
@@ -52,40 +57,49 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         var useLocal = isInnerWhisper || isInnerShout;
         var ollamaModel = isInnerShout ? _ollamaOptions.ShoutModel : _ollamaOptions.WhisperModel;
 
+        // Build session context: conversation history + temporal preamble from SQLite log
+        var sessionContext = await _sessionContextBuilder.BuildAsync(cancellationToken);
+        var enrichedPrompt = sessionContext.Preamble is not null
+            ? $"{sessionContext.Preamble}\n\nMy question: {prompt}"
+            : prompt;
+
         _logger.LogInformation(
-            "[Recommendations] Requesting | provider: {Provider} | history turns: {HistoryCount} | prompt: {Length} chars",
-            useLocal ? ollamaModel : "gemini", history.Count, prompt.Length);
+            "[Recommendations] Requesting | provider: {Provider} | history turns: {HistoryCount} | preamble: {HasPreamble} | prompt: {Length} chars",
+            useLocal ? ollamaModel : "gemini",
+            sessionContext.History.Count,
+            sessionContext.Preamble is not null,
+            enrichedPrompt.Length);
 
         MusicRecommendationResult result;
         string providerUsed;
         bool usedFallback = false;
+        var promptTimestamp = DateTimeOffset.UtcNow;
 
         if (useLocal)
         {
             try
             {
-                result = await _ollamaGateway.GetMusicRecommendationAsync(prompt, history, ollamaModel, cancellationToken);
+                result = await _ollamaGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, ollamaModel, cancellationToken);
                 providerUsed = isInnerShout ? "inner-shout" : "inner-whisper";
             }
             catch (Exception ex) when (IsOllamaFailure(ex))
             {
                 _logger.LogWarning("[Recommendations] Ollama unavailable ({Reason}) — falling back to Gemini",
                     ex is TaskCanceledException ? "timeout" : "connection refused");
-                result = await _geminiGateway.GetMusicRecommendationAsync(prompt, history, cancellationToken);
+                result = await _geminiGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, cancellationToken);
                 providerUsed = "gemini";
                 usedFallback = true;
             }
         }
         else
         {
-            result = await _geminiGateway.GetMusicRecommendationAsync(prompt, history, cancellationToken);
+            result = await _geminiGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, cancellationToken);
             providerUsed = "gemini";
         }
 
-        var updatedHistory = history
-            .Append(new ConversationTurn("user", prompt))
-            .Append(new ConversationTurn("model", result.Narrative))
-            .ToList();
+        // Log the exchange to the session history after a successful AI response
+        await _sessionHistory.LogUserChatAsync(prompt, promptTimestamp);
+        await _sessionHistory.LogAiReplyAsync(result.Narrative, DateTimeOffset.UtcNow);
 
         var (annotatedTracks, message) = await AnnotateWithLocalLibraryAsync(result.Tracks, cancellationToken);
 
@@ -113,7 +127,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
 
         var enriched = await EnrichWithAlbumArtAsync(tracksToReturn, cancellationToken);
 
-        return new RecommendationResponse(result.Narrative, enriched, updatedHistory, message, providerUsed, usedFallback);
+        return new RecommendationResponse(result.Narrative, enriched, message, providerUsed, usedFallback);
     }
 
     private async Task<IReadOnlyList<TrackSuggestion>> EnrichWithAlbumArtAsync(
@@ -138,8 +152,8 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
     }
 
     private static bool IsOllamaFailure(Exception ex) =>
-        ex is TaskCanceledException ||                          // timeout
-        (ex is HttpRequestException http && http.StatusCode is null); // connection refused — Ollama not running
+        ex is TaskCanceledException ||
+        (ex is HttpRequestException http && http.StatusCode is null);
 
     private async Task<(IReadOnlyList<TrackSuggestion> Tracks, string? Message)> AnnotateWithLocalLibraryAsync(
         IReadOnlyList<TrackSuggestion> suggestions,
@@ -157,7 +171,12 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
                 .Select(s =>
                 {
                     var match = inventory.FirstOrDefault(local => TrackMatcher.IsMatch(s, local, threshold));
-                    return s with { InLocalLibrary = match is not null, FilePath = match?.FilePath };
+                    return s with
+                    {
+                        InLocalLibrary  = match is not null,
+                        FilePath        = match?.FilePath,
+                        DurationSeconds = match?.DurationSeconds,
+                    };
                 })
                 .ToList();
 

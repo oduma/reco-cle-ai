@@ -14,12 +14,13 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
     private readonly RecommendationOptions _recommendationOptions;
     private readonly ILogger<GeminiGatewayService> _logger;
 
-    private const string ChatSystemInstruction =
+    private static readonly string ChatSystemInstruction =
         "You are an expert music discovery assistant. Help users discover music by providing thoughtful, " +
         "personalized recommendations. When suggesting music, include artist names, album names where " +
         "relevant, and brief explanations of why you're recommending them. Be conversational, engaging, " +
         "and genuinely knowledgeable about music across all genres and eras. " +
-        "Always wrap every track title and artist name in **double asterisks** — for example: **Kind of Blue** by **Miles Davis**.";
+        "Always wrap every track title and artist name in **double asterisks** — for example: **Kind of Blue** by **Miles Davis**." +
+        AiSystemInstructions.SessionMemoryInstruction;
 
     private string BuildRecommendationSystemInstruction() =>
         "You are an expert music discovery assistant. For each user request you must respond with a JSON object " +
@@ -30,7 +31,8 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
         "- \"tracks\": an array of the specific tracks you mention in your narrative. Each track must have " +
         "\"title\", \"artist\", and optionally \"album\".\n" +
         $"Return between {_recommendationOptions.MinTracks} and {_recommendationOptions.MaxTracks} tracks. " +
-        "Always return valid JSON and nothing else.";
+        "Always return valid JSON and nothing else." +
+        AiSystemInstructions.SessionMemoryInstruction;
 
     public GeminiGatewayService(
         HttpClient httpClient,

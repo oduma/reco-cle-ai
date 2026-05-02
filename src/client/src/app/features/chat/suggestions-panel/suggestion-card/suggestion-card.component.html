@@ -47,7 +47,7 @@
         rel="noopener noreferrer"
         class="footer-action footer-action--link"
         [attr.aria-label]="'Search ' + suggestion().artist + ' – ' + suggestion().title + ' on YouTube'"
-        (click)="$event.stopPropagation()">
+        (click)="onYouTubeClick(); $event.stopPropagation()">
         <img src="/icons/youtube.svg" class="footer-icon" alt="" aria-hidden="true" />
         <span>YouTube</span>
       </a>

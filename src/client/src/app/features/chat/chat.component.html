@@ -22,6 +22,20 @@
         Cosmic Voice
       </mat-button-toggle>
     </mat-button-toggle-group>
+
+    <div class="memory-widget" aria-label="Session memory usage">
+      <span class="memory-label">{{ memoryUsed() }}/{{ memoryTotal() }}</span>
+      <div class="memory-bar" [style.--fill]="memoryFill()" [class.memory-bar--high]="memoryHigh()" role="progressbar"
+           [attr.aria-valuenow]="memoryUsed()" [attr.aria-valuemax]="memoryTotal()"></div>
+      <button
+        mat-icon-button
+        class="memory-bust-btn"
+        (click)="bustMemory()"
+        matTooltip="Clear session memory"
+        aria-label="Clear session memory">
+        <mat-icon>delete_sweep</mat-icon>
+      </button>
+    </div>
   </header>
 
   @if (usedFallback()) {
@@ -49,9 +63,15 @@
         @for (msg of messages(); track $index) {
           <div class="message" [class.message--user]="msg.role === 'user'" [class.message--model]="msg.role === 'model'">
             @if (msg.role === 'model') {
-              <div class="message-bubble" [innerHTML]="msg.text | boldMarkdown"></div>
+              <div class="message-bubble">
+                <div [innerHTML]="msg.text | boldMarkdown"></div>
+                <span class="message-time">{{ formatMessageTime(msg.timestamp) }}</span>
+              </div>
             } @else {
-              <div class="message-bubble">{{ msg.text }}</div>
+              <div class="message-bubble">
+                <span>{{ msg.text }}</span>
+                <span class="message-time">{{ formatMessageTime(msg.timestamp) }}</span>
+              </div>
             }
           </div>
         }

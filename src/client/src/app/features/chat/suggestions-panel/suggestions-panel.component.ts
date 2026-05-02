@@ -5,6 +5,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { SuggestionCardComponent } from './suggestion-card/suggestion-card.component';
 import { TrackSuggestion } from '../../../core/services/recommendation.service';
 import { PlaylistService } from '../../../core/services/playlist.service';
+import { SessionService } from '../../../core/services/session.service';
 
 @Component({
   selector: 'app-suggestions-panel',
@@ -22,16 +23,21 @@ export class SuggestionsPanelComponent {
 
   addingAll = signal(false);
 
-  localFilePaths = computed(() =>
-    this.suggestions()
-      .filter(s => s.inLocalLibrary && s.filePath)
-      .map(s => s.filePath!)
+  localTracks = computed(() =>
+    this.suggestions().filter(s => s.inLocalLibrary && s.filePath)
   );
 
-  constructor(private playlistService: PlaylistService, private snackBar: MatSnackBar) {}
+  localFilePaths = computed(() => this.localTracks().map(s => s.filePath!));
+
+  constructor(
+    private playlistService: PlaylistService,
+    private snackBar: MatSnackBar,
+    private sessionService: SessionService,
+  ) {}
 
   addAllToClementine(): void {
-    const paths = this.localFilePaths();
+    const tracks = this.localTracks();
+    const paths  = this.localFilePaths();
     if (paths.length === 0 || this.addingAll()) return;
 
     this.addingAll.set(true);
@@ -39,6 +45,10 @@ export class SuggestionsPanelComponent {
       next: () => {
         this.snackBar.open(`Added ${paths.length} track(s) to Clementine`, undefined, { duration: 2500 });
         this.addingAll.set(false);
+        for (const t of tracks) {
+          this.sessionService.logTrackEvent('track-added', t.artist, t.album ?? null, t.title, t.durationSeconds ?? null)
+            .subscribe({ error: () => {} });
+        }
       },
       error: () => {
         this.snackBar.open('Could not add tracks to Clementine', 'Dismiss', { duration: 4000 });

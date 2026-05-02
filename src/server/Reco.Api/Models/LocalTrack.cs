@@ -7,5 +7,6 @@ public record LocalTrack(
     string NormalizedTitle,
     string NormalizedArtist,
     string? NormalizedAlbum,
-    string? FilePath
+    string? FilePath,
+    double? DurationSeconds = null
 );
