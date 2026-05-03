@@ -41,6 +41,15 @@
 
     <button
       mat-icon-button
+      class="diary-btn"
+      (click)="openDiary()"
+      matTooltip="Musical Diary"
+      aria-label="Open musical diary">
+      <mat-icon>auto_stories</mat-icon>
+    </button>
+
+    <button
+      mat-icon-button
       class="settings-btn"
       (click)="openSettings()"
       matTooltip="Settings"

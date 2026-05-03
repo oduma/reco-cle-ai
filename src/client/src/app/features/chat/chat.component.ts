@@ -14,6 +14,7 @@ import {
 } from '../../core/services/recommendation.service';
 import { SessionService } from '../../core/services/session.service';
 import { SettingsModalComponent } from '../settings/settings-modal.component';
+import { MusicalDiaryModalComponent } from '../diary/musical-diary-modal/musical-diary-modal.component';
 import { SuggestionsPanelComponent } from './suggestions-panel/suggestions-panel.component';
 import { MoodPickerComponent } from './mood-picker/mood-picker.component';
 import { BoldMarkdownPipe } from '../../core/pipes/bold-markdown.pipe';
@@ -238,6 +239,14 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     this.dialog.open(SettingsModalComponent, {
       disableClose: false,
       autoFocus: false,
+    });
+  }
+
+  protected openDiary(): void {
+    this.dialog.open(MusicalDiaryModalComponent, {
+      disableClose: false,
+      autoFocus: false,
+      maxWidth: '96vw',
     });
   }
 

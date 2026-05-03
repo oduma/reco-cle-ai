@@ -1,0 +1,235 @@
+.diary-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+// ── Header ────────────────────────────────────────────────────────────────────
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px 8px;
+  font-family: var(--reco-font);
+  font-size: 1.1rem;
+}
+
+.header-icon {
+  color: var(--reco-accent);
+  font-size: 1.3rem;
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.header-title {
+  flex: 1;
+  font-weight: 600;
+  background: linear-gradient(90deg, var(--reco-primary), var(--reco-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.close-btn {
+  color: var(--reco-text-muted);
+
+  &:hover mat-icon {
+    color: var(--reco-error);
+  }
+}
+
+// ── Body layout ───────────────────────────────────────────────────────────────
+
+.dialog-body {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.diary-layout {
+  display: flex;
+  min-width: 680px;
+  max-width: 900px;
+  height: 440px;
+}
+
+// ── Calendar pane ─────────────────────────────────────────────────────────────
+
+.calendar-pane {
+  flex: 0 0 300px;
+  padding: 12px 16px;
+  border-right: 1px solid var(--reco-border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calendar-hint {
+  margin: 0;
+  font-family: var(--reco-font);
+  font-size: 0.72rem;
+  color: var(--reco-text-muted);
+  font-style: italic;
+}
+
+.calendar-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// Style the active-day dots injected via dateClass
+:host ::ng-deep .diary-active-day {
+  .mat-calendar-body-cell-content {
+    background-color: var(--reco-primary-dim) !important;
+    color: var(--reco-primary) !important;
+    font-weight: 700;
+  }
+
+  &.mat-calendar-body-selected .mat-calendar-body-cell-content {
+    background-color: var(--reco-primary) !important;
+    color: #fff !important;
+  }
+}
+
+// ── Entry pane ────────────────────────────────────────────────────────────────
+
+.entry-pane {
+  flex: 1;
+  padding: 16px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.entry-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--reco-text-muted);
+  text-align: center;
+  padding: 24px;
+
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    opacity: 0.3;
+  }
+
+  p {
+    margin: 0;
+    font-family: var(--reco-font);
+    font-size: 0.88rem;
+    font-style: italic;
+    max-width: 260px;
+  }
+}
+
+.entry-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--reco-text-muted);
+
+  p {
+    margin: 0;
+    font-family: var(--reco-font);
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+}
+
+.entry-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--reco-error);
+
+  mat-icon {
+    font-size: 36px;
+    width: 36px;
+    height: 36px;
+  }
+
+  p {
+    margin: 0;
+    font-family: var(--reco-font);
+    font-size: 0.875rem;
+    text-align: center;
+  }
+}
+
+.entry-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.entry-date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.entry-date-label {
+  flex: 1;
+  font-family: var(--reco-font);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--reco-text-muted);
+}
+
+.regen-btn {
+  color: var(--reco-text-muted);
+  --mdc-icon-button-state-layer-size: 28px;
+  --mdc-icon-button-icon-size: 16px;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    transition: color 0.2s ease;
+  }
+
+  &:hover mat-icon {
+    color: var(--reco-primary);
+  }
+}
+
+.cache-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--reco-surface-2);
+  border: 1px solid var(--reco-border);
+  border-radius: 10px;
+  font-family: var(--reco-font);
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--reco-text-muted);
+  align-self: flex-start;
+}
+
+.entry-text {
+  font-family: var(--reco-font);
+  font-size: 0.9rem;
+  line-height: 1.75;
+  color: var(--reco-text);
+  white-space: pre-wrap;
+}

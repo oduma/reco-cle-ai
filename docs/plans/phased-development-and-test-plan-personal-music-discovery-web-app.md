@@ -320,6 +320,58 @@ The user can take any question they have already asked — even one from earlier
 
 ---
 
+## Phase 14 — Musical Diary
+
+### Goal
+Give the user a way to reflect on their listening history day by day. A calendar icon in the header opens the Musical Diary modal — an inline calendar that highlights every past day where the user sent at least one request, and a diary area where an AI-generated, first-person narrative entry appears when the user clicks any highlighted date.
+
+### What changes
+
+**Calendar modal**
+A `calendar_month` icon button is added to the header between the provider toggle and the memory widget. Clicking it opens a `MatDialog` modal titled "Musical Diary". The modal contains two stacked areas:
+- **Calendar (top):** an inline `MatCalendar` showing the current month. Today is highlighted with a charcoal background. Past days with at least one user prompt (across all sessions, including soft-deleted ones) are highlighted in cyan and are clickable. Future months can be navigated but contain no highlights.
+- **Diary area (bottom):** a scrollable text panel displaying the diary entry for the selected date, or a prompt to select a date.
+
+**Active dates endpoint**
+`GET /api/diary/active-dates` queries `session_events` without an `is_active` filter — intentionally spanning all historical data including FIFO-evicted sessions — and returns a list of YYYY-MM-DD dates (past only, today excluded) where at least one `user-chat` event exists.
+
+**Diary generation and caching**
+`POST /api/diary/entry` with `{ date, force }` body:
+- `force = false` + cached entry → return from `diary_entries` table (no AI call)
+- `force = false` + no cache → generate via Gemini + save + return
+- `force = true` → regenerate via Gemini + overwrite + return
+
+The AI prompt gathers user prompts (with moods) and track interactions (Clementine adds, YouTube listens) for that date from `session_events` and asks Gemini to write a diary entry starting with "Dear Diary, today is..." in a tone that is introspective, gently self-deprecating, honest but never dismissive.
+
+**diary_entries table**
+New table added via additive migration in `EnsureCreatedAsync()`:
+```sql
+CREATE TABLE IF NOT EXISTS diary_entries (
+    date       TEXT PRIMARY KEY,
+    content    TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+```
+
+**Forced regeneration**
+The diary area shows a "Regenerate" button when an entry is displayed. Clicking it calls the endpoint with `force = true`, replacing the cached entry.
+
+**Today is never a diary day**
+Today is excluded from the active-dates response and the POST endpoint validates that the requested date is strictly before today. A live session is not complete and caching a mid-day entry would produce an inaccurate record.
+
+### Key design decisions
+- `session_events` queried without `is_active` filter for diary — FIFO eviction is a memory management mechanism, not a historical erasure
+- Gemini is always used for diary generation regardless of the selected provider — the diary is a literary task requiring prose quality and consistent availability
+- Single POST endpoint for get-or-generate avoids a double round-trip on first click
+- Date stored as YYYY-MM-DD local date; frontend guards against sending today; backend double-checks as a secondary safety
+- Diary entries never auto-deleted or evicted — they accumulate as a permanent record
+- `MatCalendar.dateClass` function uses a `Set<string>` loaded once on modal open for O(1) date lookup during rendering
+
+### Main user value
+The user can open the diary at any time and explore their music journey day by day. Each entry is a personal, honest reflection generated from real data — what they asked for, what mood they were in, what they actually listened to. It turns a usage log into something that feels like a personal artefact.
+
+---
+
 ## 4. Cross-Phase Working Rules
 
 These rules apply to **every phase**.

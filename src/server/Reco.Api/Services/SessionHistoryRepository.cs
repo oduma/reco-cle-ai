@@ -62,6 +62,12 @@ public class SessionHistoryRepository : ISessionHistoryRepository
                 value      TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS diary_entries (
+                date       TEXT PRIMARY KEY,
+                content    TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             """;
         await cmd.ExecuteNonQueryAsync();
 

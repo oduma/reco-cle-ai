@@ -1,0 +1,73 @@
+<div class="diary-modal">
+
+  <div mat-dialog-title class="dialog-header">
+    <mat-icon class="header-icon" aria-hidden="true">auto_stories</mat-icon>
+    <span class="header-title">Musical Diary</span>
+    <button mat-icon-button class="close-btn" (click)="close()" aria-label="Close diary">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <mat-dialog-content class="dialog-body">
+    <div class="diary-layout">
+
+      <!-- Left: calendar -->
+      <div class="calendar-pane">
+        <p class="calendar-hint">Select a past day to read your diary entry.</p>
+        @if (datesLoading()) {
+          <div class="calendar-loading">
+            <mat-spinner diameter="32" />
+          </div>
+        } @else {
+          <mat-calendar
+            [selected]="selectedDate()"
+            [maxDate]="maxDate()"
+            [dateClass]="dateClass"
+            (selectedChange)="onDateSelected($event)"
+          />
+        }
+      </div>
+
+      <!-- Right: entry -->
+      <div class="entry-pane">
+        @if (!selectedDate()) {
+          <div class="entry-empty">
+            <mat-icon aria-hidden="true">menu_book</mat-icon>
+            <p>Pick a highlighted day from the calendar to read what the music said about you.</p>
+          </div>
+        } @else if (entryLoading()) {
+          <div class="entry-loading">
+            <mat-spinner diameter="36" />
+            <p>Writing your diary entry&hellip;</p>
+          </div>
+        } @else if (entryError()) {
+          <div class="entry-error">
+            <mat-icon aria-hidden="true">error_outline</mat-icon>
+            <p>{{ entryError() }}</p>
+            <button mat-stroked-button (click)="regenerate()">Try again</button>
+          </div>
+        } @else if (entryContent()) {
+          <div class="entry-content">
+            <div class="entry-date-row">
+              <span class="entry-date-label">{{ selectedDateLabel() }}</span>
+              <button
+                mat-icon-button
+                class="regen-btn"
+                (click)="regenerate()"
+                matTooltip="Regenerate this entry"
+                aria-label="Regenerate diary entry">
+                <mat-icon>refresh</mat-icon>
+              </button>
+            </div>
+            @if (isFromCache()) {
+              <span class="cache-badge">Cached</span>
+            }
+            <div class="entry-text">{{ entryContent() }}</div>
+          </div>
+        }
+      </div>
+
+    </div>
+  </mat-dialog-content>
+
+</div>

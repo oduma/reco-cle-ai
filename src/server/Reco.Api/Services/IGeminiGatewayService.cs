@@ -9,4 +9,8 @@ public interface IGeminiGatewayService : ILLMGatewayService
         string prompt,
         IReadOnlyList<ConversationTurn> history,
         CancellationToken cancellationToken = default);
+
+    Task<string> GenerateDiaryEntryAsync(
+        string userPrompt,
+        CancellationToken cancellationToken = default);
 }

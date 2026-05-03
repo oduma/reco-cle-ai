@@ -27,6 +27,8 @@ builder.Services.AddSingleton<ILastFmGatewayService, LastFmGatewayService>();
 builder.Services.AddSingleton<ISuggestionCacheService, SuggestionCacheService>();
 builder.Services.AddSingleton<ITrackEnrichmentService, TrackEnrichmentService>();
 builder.Services.AddScoped<IRecommendationOrchestrationService, RecommendationOrchestrationService>();
+builder.Services.AddScoped<IDiaryRepository, DiaryRepository>();
+builder.Services.AddScoped<IDiaryService, DiaryService>();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();

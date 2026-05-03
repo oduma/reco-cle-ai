@@ -34,6 +34,7 @@ The roadmap is intentionally phased:
 11. **Phase 11:** In-app settings panel — gear button in header opens a modal where every provider URL, API key, model name, path, and threshold can be viewed and overwritten; settings persisted in `reasonic.db`; take effect on next request without restart; DB renamed from `session_history.db` to `reasonic.db`
 12. **Phase 12:** UI polish — moveable split-pane divider, gradient "Reasonic" title (cyan→magenta), magenta VU meter, provider model icons, double-click prevention on Clementine buttons, no-Clementine mode hides add buttons and removes dimming, consistent card heights, Courier font + cyan/red for chat loading/error states
 13. **Phase 13:** User changes their mind — mood badge on every user bubble; floating mood picker with 9 moods; re-send same prompt with mood annotation appended to conversation; mood stored in session DB and restored on page load
+14. **Phase 14:** Musical Diary — calendar icon opens a Musical Diary modal; past active days highlighted in cyan; AI (Gemini) writes a first-person diary entry covering listening mood, habits critique, most interesting request, and day conclusion; entries cached per date with forced regeneration option
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:
@@ -52,6 +53,7 @@ Use these locations as the primary sources of truth:
 - `docs/architecture/phase9-history-hydration-design.md` — Phase 9 history hydration: session restore on load, rewind button, active reply persistence
 - `docs/architecture/phase10-progressive-retry-and-autofocus-design.md` — Phase 10 progressive retry (502 only, 4 attempts) and auto-focus design
 - `docs/architecture/phase11-settings-panel-design.md` — Phase 11 in-app settings panel: app_settings table, IAppSettingsService, service migration, API endpoints, modal design
+- `docs/architecture/phase14-musical-diary-design.md` — Phase 14 musical diary: calendar modal, active-dates query, Gemini diary generation, diary_entries schema, caching and forced regeneration
 - `docs/architecture/environment-variables-and-configuration.md` — complete variable reference, recommended precedence order, and known config issues
 - `docs/architecture/angular-material-dotnet-api-architecture-best-practices.md`
 - `docs/architecture/logical-component-architecture-personal-music-discovery-engine.md`

@@ -230,6 +230,93 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
             null, System.Net.HttpStatusCode.TooManyRequests);
     }
 
+    private const string DiarySystemInstruction =
+        "You are a lyrical diarist writing in the voice of the listener. " +
+        "Given a list of music prompts a person explored during a single day, " +
+        "write a short, reflective diary entry — no more than three paragraphs — " +
+        "in first person, as though the listener is writing in their own journal. " +
+        "Capture the emotional arc of the day through the lens of the music they sought out. " +
+        "Be literary, evocative, and personal. Do not list tracks or artists. " +
+        "Do not include a date heading. Write only the diary prose, nothing else.";
+
+    public async Task<string> GenerateDiaryEntryAsync(
+        string userPrompt,
+        CancellationToken cancellationToken = default)
+    {
+        var apiKey  = await _settings.GetStringAsync("GEMINI_API_KEY",  "");
+        var model   = await _settings.GetStringAsync("GEMINI_MODEL",    "gemini-2.5-pro");
+        var baseUrl = await _settings.GetStringAsync("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com");
+
+        var url          = $"{baseUrl}/v1beta/models/{model}:generateContent?key={apiKey}";
+        var sanitizedUrl = $"{baseUrl}/v1beta/models/{model}:generateContent?key=***";
+
+        var requestBody = new
+        {
+            systemInstruction = new { parts = new[] { new { text = DiarySystemInstruction } } },
+            contents = new[]
+            {
+                new { role = "user", parts = new[] { new { text = userPrompt } } }
+            }
+        };
+
+        for (var attempt = 0; attempt <= MaxRetries; attempt++)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "[Gemini/Diary] → POST {Url} | prompt length: {PromptLength} chars",
+                    sanitizedUrl, userPrompt.Length);
+
+                var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
+
+                _logger.LogInformation("[Gemini/Diary] ← {StatusCode} ({Status})",
+                    (int)response.StatusCode, response.StatusCode);
+
+                string? errorBody = null;
+                if (!response.IsSuccessStatusCode)
+                {
+                    errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogWarning("[Gemini/Diary] Error response body: {Body}", errorBody);
+                }
+
+                if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && attempt < MaxRetries)
+                {
+                    var delay = ParseRetryDelay(errorBody) ?? FallbackRetryDelays[attempt];
+                    _logger.LogWarning("[Gemini/Diary] Rate limit hit, retrying in {Delay}s (attempt {Attempt}/{Max})",
+                        delay.TotalSeconds, attempt + 1, MaxRetries);
+                    await Task.Delay(delay, cancellationToken);
+                    continue;
+                }
+
+                response.EnsureSuccessStatusCode();
+
+                var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
+                var text = json
+                    .GetProperty("candidates")[0]
+                    .GetProperty("content")
+                    .GetProperty("parts")[0]
+                    .GetProperty("text")
+                    .GetString();
+
+                _logger.LogInformation("[Gemini/Diary] Response text length: {Length} chars", text?.Length ?? 0);
+                return text ?? throw new InvalidOperationException("Gemini returned an empty diary response.");
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "HTTP error calling Gemini API for diary entry");
+                throw;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException and not InvalidOperationException)
+            {
+                _logger.LogError(ex, "Unexpected error calling Gemini API for diary entry");
+                throw;
+            }
+        }
+
+        throw new HttpRequestException("Gemini rate limit exceeded after retries.",
+            null, System.Net.HttpStatusCode.TooManyRequests);
+    }
+
     private MusicRecommendationResult ParseMusicRecommendation(string rawJson)
     {
         try
