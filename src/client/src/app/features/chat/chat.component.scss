@@ -45,7 +45,12 @@
   font-weight: 600;
   font-family: var(--reco-font);
   letter-spacing: 0.01em;
-  color: var(--reco-primary);
+  // Gradient: cyan → magenta across the full title
+  background: linear-gradient(90deg, var(--reco-primary), var(--reco-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 .chat-tagline {
@@ -231,9 +236,9 @@
   overflow: hidden;
 
   &--chat {
-    flex: 0 0 40%;
+    flex: 0 0 var(--split-pct, 40%);
     background: var(--reco-bg);
-    border-right: 1px solid var(--reco-border);
+    border-right: none; // divider element handles the visual separation
     font-family: var(--reco-font-bubble);
   }
 
@@ -241,6 +246,22 @@
     flex: 1;
     overflow-y: auto;
     background: var(--reco-surface-0);
+    min-width: 220px;
+  }
+}
+
+// ── Draggable divider ────────────────────────────────────────────────────────
+
+.split-divider {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: var(--reco-border);
+  transition: background 0.15s ease;
+  z-index: 1;
+
+  &:hover {
+    background: var(--reco-primary);
   }
 }
 
@@ -251,7 +272,6 @@
 
   .pane--chat {
     flex: 1;
-    border-right: none;
   }
 
   .pane--reco {
@@ -259,6 +279,11 @@
     max-height: 40vh;
     order: -1;
     border-bottom: 1px solid var(--reco-border);
+    min-width: unset;
+  }
+
+  .split-divider {
+    display: none;
   }
 }
 
@@ -305,7 +330,6 @@
   gap: 10px;
   background: var(--reco-bg);
 
-  // Custom scrollbar to match dark theme
   scrollbar-width: thin;
   scrollbar-color: var(--reco-surface-2) transparent;
 }
@@ -452,6 +476,18 @@
   }
 }
 
+// ── Mood badge (user bubbles) ─────────────────────────────────────────────────
+
+.message--user .message-bubble {
+  padding-top: 24px;
+}
+
+.mood-badge {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+}
+
 // ── Loading animation ─────────────────────────────────────────────────────────
 
 .loading-row {
@@ -464,8 +500,8 @@
   font-style: normal;
   font-size: 0.8rem;
   font-weight: 700;
-  font-family: var(--reco-font);
-  color: var(--reco-warning);
+  font-family: var(--reco-font-bubble);
+  color: var(--reco-primary);
 }
 
 .loading-icon {
@@ -479,6 +515,8 @@
 
 .loading-phrase {
   min-width: 0;
+  font-family: var(--reco-font-bubble);
+  color: var(--reco-primary);
 }
 
 @keyframes note-pulse {
@@ -497,7 +535,7 @@
   background-color: rgba(255, 82, 82, 0.15);
   color: var(--reco-error);
   font-size: 0.875rem;
-  font-family: var(--reco-font);
+  font-family: var(--reco-font-bubble);
   border: 1px solid rgba(255, 82, 82, 0.3);
 
   &--rate-limit {
@@ -518,7 +556,6 @@
   flex-shrink: 0;
   background-color: var(--reco-surface-0);
 
-  // Override Material MDC form field tokens for dark surface
   --mdc-outlined-text-field-label-text-font:          var(--reco-font-bubble);
   --mdc-outlined-text-field-input-text-color:         var(--reco-text);
   --mdc-outlined-text-field-label-text-color:         var(--reco-text-muted);
@@ -530,7 +567,6 @@
   --mdc-outlined-text-field-disabled-outline-color:   var(--reco-border);
   --mat-form-field-focus-select-arrow-color:          var(--reco-primary);
 
-  // FAB send button
   --mdc-fab-container-color: var(--reco-primary);
   --mdc-fab-icon-color:      #ffffff;
   --mat-fab-foreground-color:#ffffff;

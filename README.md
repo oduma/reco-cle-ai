@@ -32,6 +32,8 @@ The roadmap is intentionally phased:
 9. **Phase 9:** History hydration & suggestion rewind — full conversation restored on page load; every AI bubble gains a rewind button (`history` icon) to swap the suggestions panel to that reply's tracks; active reply identity persisted in `session_state` table across refreshes
 10. **Phase 10:** Progressive retry & auto-focus — transparent 4-attempt retry on transient 502 errors (3/5/7/10 s delays) with a bold in-bubble notice; prompt input auto-focused on load and after each AI response/error
 11. **Phase 11:** In-app settings panel — gear button in header opens a modal where every provider URL, API key, model name, path, and threshold can be viewed and overwritten; settings persisted in `reasonic.db`; take effect on next request without restart; DB renamed from `session_history.db` to `reasonic.db`
+12. **Phase 12:** UI polish — moveable split-pane divider, gradient "Reasonic" title (cyan→magenta), magenta VU meter, provider model icons, double-click prevention on Clementine buttons, no-Clementine mode hides add buttons and removes dimming, consistent card heights, Courier font + cyan/red for chat loading/error states
+13. **Phase 13:** User changes their mind — mood badge on every user bubble; floating mood picker with 9 moods; re-send same prompt with mood annotation appended to conversation; mood stored in session DB and restored on page load
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:

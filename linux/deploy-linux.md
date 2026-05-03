@@ -1,6 +1,6 @@
-# Deploying Reco to Linux (SUSE)
+# Deploying Reasonic to Linux (SUSE)
 
-This guide walks through deploying the Reco app to a Linux machine running SUSE.
+This guide walks through deploying the Reasonic app to a Linux machine running SUSE.
 You do **not** need to install .NET, Node.js, or PowerShell on the Linux machine.
 The build happens entirely on your Windows machine, and the result is a self-contained
 binary that carries its own runtime.
@@ -24,7 +24,15 @@ binary that carries its own runtime.
 
 ## Step 1 — Build on Windows
 
-Open PowerShell in your repo root and run:
+Make sure the Angular dependencies are installed (only needed once, or after `package.json` changes):
+
+```powershell
+cd src\client
+npm install
+cd ..\..
+```
+
+Then run the build script from the repo root:
 
 ```powershell
 .\linux\build-linux.ps1
@@ -34,6 +42,7 @@ This will:
 1. Build the Angular frontend (production mode)
 2. Copy the Angular output into the API's `wwwroot`
 3. Publish the .NET API as a **self-contained** `linux-x64` binary
+4. Copy `start.sh` and `deploy-linux.md` alongside the binary
 
 Output goes to `linux\dist\` in the repo. That folder contains everything needed to run
 the app — no .NET installation required on the Linux side.
@@ -47,16 +56,16 @@ Copy the entire `linux\dist\` folder to your Linux machine.
 **Option A — using `scp` (from your Windows machine, in PowerShell or Command Prompt):**
 
 ```powershell
-scp -r linux\dist youruser@192.168.x.x:/home/youruser/reco
+scp -r linux\dist youruser@192.168.x.x:/home/youruser/reasonic
 ```
 
 Replace `youruser` and `192.168.x.x` with your actual Linux username and IP address.
-The destination `/home/youruser/reco` will be created if it doesn't exist.
+The destination `/home/youruser/reasonic` will be created if it doesn't exist.
 
 **Option B — using `rsync` (faster for re-deployments, run from Windows Git Bash or WSL):**
 
 ```bash
-rsync -av --delete linux/dist/ youruser@192.168.x.x:/home/youruser/reco/
+rsync -av --delete linux/dist/ youruser@192.168.x.x:/home/youruser/reasonic/
 ```
 
 After re-running `build-linux.ps1`, `rsync` with `--delete` will synchronise only changed
@@ -64,12 +73,12 @@ files — much quicker than a full copy.
 
 ---
 
-## Step 3 — Set up your API key on Linux
+## Step 3 — Configure API keys on Linux
 
 On the Linux machine, navigate to the folder where you copied the app:
 
 ```bash
-cd /home/youruser/reco
+cd /home/youruser/reasonic
 ```
 
 Create a file called `.env.local` in that folder. This file holds your secrets and is
@@ -79,18 +88,19 @@ Create a file called `.env.local` in that folder. This file holds your secrets a
 nano .env.local
 ```
 
-Add the following line — replace the value with your real key:
+At a minimum, set both required API keys:
 
 ```
 GEMINI_API_KEY=your-gemini-api-key-here
+LASTFM_API_KEY=your-lastfm-api-key-here
 ```
 
-If you also want to override other settings, add them on separate lines:
+If you also want Clementine integration or other overrides, add them on separate lines:
 
 ```
 GEMINI_API_KEY=your-gemini-api-key-here
+LASTFM_API_KEY=your-lastfm-api-key-here
 CLEMENTINE_DB_PATH=/home/youruser/clementine.db
-RECOMMENDATION_SUGGESTION_CACHE_MINUTES=120
 ```
 
 Save and close (`Ctrl+O`, `Enter`, `Ctrl+X` in nano).
@@ -104,6 +114,34 @@ chmod 600 .env.local
 > **How this works**: `start.sh` reads `.env.local` with `source` before launching the
 > app. The variables are set only for that process — they do not pollute your shell
 > session or system environment.
+
+> **Phase 11 — in-app settings panel**: From Phase 11 onward, all settings except
+> `REASONIC_DB_PATH` can be changed from inside the app via the gear icon in the header.
+> Settings entered through the panel are persisted in `reasonic.db` and take effect on
+> the next request without restarting the app. `.env.local` values act as the initial
+> fallback if the database has no value for a key.
+
+### Full list of supported variables
+
+| Variable | Required | Default | Notes |
+|----------|----------|---------|-------|
+| `GEMINI_API_KEY` | Yes | — | Google Gemini authentication key |
+| `LASTFM_API_KEY` | Yes | — | Last.fm key for album art |
+| `REASONIC_DB_PATH` | No | `reasonic.db` next to binary | **Not UI-configurable** |
+| `GEMINI_MODEL` | No | `gemini-2.5-pro` | |
+| `GEMINI_BASE_URL` | No | `https://generativelanguage.googleapis.com` | |
+| `LASTFM_BASE_URL` | No | `https://ws.audioscrobbler.com/2.0/` | |
+| `OLLAMA_BASE_URL` | No | `http://localhost:11434` | |
+| `OLLAMA_WHISPER_MODEL` | No | `llama3.1:8b` | Inner Whisper model |
+| `OLLAMA_SHOUT_MODEL` | No | `gemma4:e4b` | Inner Shout model |
+| `CLEMENTINE_DB_PATH` | No | — | Required for Clementine integration |
+| `CLEMENTINE_EXE_PATH` | No | `clementine` | |
+| `CLEMENTINE_MATCH_THRESHOLD` | No | `0.75` | Fuzzy-match threshold 0–1 |
+| `RECOMMENDATION_MIN_TRACKS` | No | `10` | |
+| `RECOMMENDATION_MAX_TRACKS` | No | `20` | |
+| `RECOMMENDATION_SUGGESTION_CACHE_MINUTES` | No | `60` | |
+| `SESSION_MEMORY_SIZE` | No | `25` | Max AI replies kept in memory |
+| `SESSION_DEFAULT_TRACK_DURATION_SECONDS` | No | `210` | Assumed duration for tracks without Clementine data |
 
 ---
 
@@ -134,16 +172,26 @@ source ~/.bashrc   # apply immediately without restarting the terminal
 This is convenient but puts secrets in a plain-text file in your home directory, which
 is fine for a personal machine but not ideal for shared servers.
 
-### C — Per-application .env.local file (what Reco uses)
+### C — Per-application .env.local file (what Reasonic uses)
 
 This is what `start.sh` already does for you. You create a `.env.local` file in the
 app's folder, and the start script loads it automatically before launching the binary.
 The variables only exist for the lifetime of that `Reco.Api` process.
 
-This is the **recommended approach** for Reco — secrets stay next to the app, are
+This is the **recommended approach** for Reasonic — secrets stay next to the app, are
 never exported globally, and are easy to update without touching your shell config.
 
-### D — systemd service (for running at startup)
+### D — In-app settings panel (Phase 11+)
+
+From Phase 11 onward, most settings (including API keys) can be changed via the gear
+icon in the app header. Changes are persisted to `reasonic.db` and take effect
+immediately on the next request — no restart needed. This is the most convenient way
+to make runtime changes after initial deployment.
+
+`REASONIC_DB_PATH` cannot be changed via the UI (the database must already exist before
+the settings table inside it can be read).
+
+### E — systemd service (for running at startup)
 
 If you want the app to start automatically when the Linux machine boots, see the
 [Optional: Run as a systemd service](#optional-run-as-a-systemd-service) section below.
@@ -157,7 +205,7 @@ entirely.
 On the Linux machine:
 
 ```bash
-cd /home/youruser/reco
+cd /home/youruser/reasonic
 chmod +x start.sh
 ./start.sh
 ```
@@ -166,7 +214,7 @@ You should see:
 
 ```
 Loading environment from .env.local...
-Starting Reco at http://localhost:12500 — press Ctrl+C to stop
+Starting Reasonic at http://localhost:12500 — press Ctrl+C to stop
 ```
 
 Open a browser on the Linux machine and go to `http://localhost:12500`.
@@ -200,27 +248,27 @@ same network.
 
 ## Optional: Run as a systemd service
 
-This makes Reco start automatically at boot and restart if it crashes.
+This makes Reasonic start automatically at boot and restart if it crashes.
 
 **1. Create the service file:**
 
 ```bash
-sudo nano /etc/systemd/system/reco.service
+sudo nano /etc/systemd/system/reasonic.service
 ```
 
 Paste this content (adjust paths and username):
 
 ```ini
 [Unit]
-Description=Reco Music Discovery App
+Description=Reasonic Music Discovery App
 After=network.target
 
 [Service]
 Type=simple
 User=youruser
-WorkingDirectory=/home/youruser/reco
-ExecStart=/home/youruser/reco/Reco.Api
-EnvironmentFile=/home/youruser/reco/.env.local
+WorkingDirectory=/home/youruser/reasonic
+ExecStart=/home/youruser/reasonic/Reco.Api
+EnvironmentFile=/home/youruser/reasonic/.env.local
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://localhost:12500
 Restart=on-failure
@@ -234,27 +282,27 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable reco
-sudo systemctl start reco
+sudo systemctl enable reasonic
+sudo systemctl start reasonic
 ```
 
 **3. Check it is running:**
 
 ```bash
-sudo systemctl status reco
+sudo systemctl status reasonic
 ```
 
 **4. View logs:**
 
 ```bash
-sudo journalctl -u reco -f
+sudo journalctl -u reasonic -f
 ```
 
 **5. Stop or restart:**
 
 ```bash
-sudo systemctl stop reco
-sudo systemctl restart reco
+sudo systemctl stop reasonic
+sudo systemctl restart reasonic
 ```
 
 ---
@@ -262,12 +310,16 @@ sudo systemctl restart reco
 ## Re-deploying after code changes
 
 1. On Windows, run `.\linux\build-linux.ps1` again.
-2. Stop the app on Linux: `Ctrl+C`, or `sudo systemctl stop reco` if running as a service.
+2. Stop the app on Linux: `Ctrl+C`, or `sudo systemctl stop reasonic` if running as a service.
 3. Copy the new `linux\dist\` to Linux (use `rsync --delete` for speed).
-4. Start the app again: `./start.sh` or `sudo systemctl start reco`.
+4. Start the app again: `./start.sh` or `sudo systemctl start reasonic`.
 
 Your `.env.local` file on the Linux machine is **not** overwritten by this process —
 it lives outside the repo and outside the dist folder.
+
+Any settings you configured via the in-app settings panel are stored in `reasonic.db`.
+That file also lives in the app folder on the Linux machine and is **not** overwritten
+by `rsync` unless you explicitly delete it.
 
 ---
 
@@ -280,4 +332,8 @@ it lives outside the repo and outside the dist folder.
 | `error while loading shared libraries: libicu*` | Missing ICU | `sudo zypper install libicu` or add `export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` to `.env.local` |
 | `Address already in use :12500` | Port taken by another process | `lsof -i :12500` then kill the process, or change the port in `start.sh` |
 | App starts but browser shows nothing | Firewall blocking port | `sudo firewall-cmd --add-port=12500/tcp --permanent && sudo firewall-cmd --reload` |
-| `GEMINI_API_KEY is not set` | `.env.local` missing or wrong path | Ensure `.env.local` is in the same folder as `start.sh` and `Reco.Api` |
+| `WARNING: GEMINI_API_KEY is not set` | Key not in `.env.local` | Add key to `.env.local`, or use the in-app settings panel |
+| `WARNING: LASTFM_API_KEY is not set` | Key not in `.env.local` | Add key to `.env.local`, or use the in-app settings panel; album art will be absent until set |
+| Album art missing | `LASTFM_API_KEY` not set | Set via `.env.local` or in-app settings panel |
+| AI not responding | `GEMINI_API_KEY` wrong or missing | Check key in `.env.local` or via in-app settings panel |
+| Ollama models not working | Ollama not running or wrong URL | Ensure Ollama is running; check `OLLAMA_BASE_URL` in settings |

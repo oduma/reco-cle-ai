@@ -240,6 +240,86 @@ The user can tweak API keys, swap AI models, point to a different Clementine dat
 
 ---
 
+## Phase 12 — UI Polish
+
+### Goal
+Deliver a set of targeted visual and interaction improvements that make the app feel more refined and robust. No new AI features — purely UX quality.
+
+### What changes
+
+**Moveable split-pane divider**
+The hard-coded 40/60 split is replaced by a draggable divider. The chat pane has a minimum width of 25 % of the viewport. The right pane's maximum is set so that at least one card column always remains visible. The card grid switches from `repeat(4, 1fr)` to `repeat(auto-fill, minmax(200px, 1fr))` so it reflows naturally as the pane width changes.
+
+**Gradient "Reasonic" title**
+The `.chat-title` text is rendered with a left-to-right CSS gradient from `var(--reco-info)` (cyan) to `var(--reco-accent)` (magenta) using `background-clip: text` / `color: transparent`.
+
+**Magenta VU meter**
+The animated bar segments in the suggestion card (`.music-bar`) are recoloured from the current muted default to `var(--reco-accent)` (magenta) to match the brand identity.
+
+**Provider model icons**
+The Inner Whisper (`llama3-logo.png`) and Inner Shout (`gemma4.png`) toggle buttons gain `<img>` icons (same 14 px size as the existing Cosmic Voice Gemini icon). Icon files are copied from `z-ai-comm/` into `public/icons/`.
+
+**Double-click prevention on Add-to-Clementine buttons**
+All "Add to Clementine" buttons (per-card and the "Add all" panel button) are disabled for 1 second after they are clicked, preventing accidental double-submissions. The button is re-enabled after the operation completes or after 1 second, whichever comes last.
+
+**No-Clementine mode — no dimming, no buttons**
+When the server reports that Clementine is unavailable (no `CLEMENTINE_DB_PATH` set / file not found), discovery tiles are shown at full opacity (no `tile--discovery` dimming class) and all Clementine-specific buttons are hidden entirely. This makes discovery-only use feel natural rather than degraded.
+
+**Consistent card heights**
+Every card in the grid stretches to fill the row height. `.tile` receives `height: 100%` and `.track-info` receives `flex: 1` so that cards in the same row always end at the same vertical position regardless of text length.
+
+**Chat text styling — Courier font + cyan/red**
+The loading phrase and retry notice in the chat pane's loading bubble use the `--reco-font-bubble` (Courier-like) font. The loading phrase and retry notice are coloured cyan (`var(--reco-info)`) during loading; the retry notice stays cyan until the final error. The error banner (`.error-banner`) inside the chat pane also uses `--reco-font-bubble`. The suggestion-panel's error state is unaffected.
+
+### Key design decisions
+- Drag state is managed with Angular signals + `HostListener('document:mousemove')` / `mouseup`; no third-party drag library needed
+- VU meter colour change is a pure CSS token swap — no logic change
+- Double-click lock uses a local `boolean` signal per button, reset via `setTimeout(1000)` after the observable completes or errors
+- `clementineUnavailable` is derived from `suggestionsMessage` content on the frontend (the server already sends a message when Clementine is absent); no new API endpoint needed
+- Card height fix is CSS-only (`height: 100%` + `flex: 1`)
+
+### Main user value
+The app feels noticeably more polished: the layout adapts to the user's preferred split, the branding reads stronger, interaction details (double-click, dimming) no longer create confusion, and the conversation pane's typography is more cohesive.
+
+---
+
+## Phase 13 — User Changes Their Mind
+
+### Goal
+Let the user reframe any past prompt by choosing a different mood, triggering a fresh AI response with the same underlying question but a new creative lens applied.
+
+### What changes
+
+**Mood badge on every user bubble**
+A small label and a circular expand icon appear in the top-right corner of each user message bubble. The label shows the mood used for that prompt (default: "Normal"). All historical bubbles restored on page load also carry their recorded mood.
+
+**Floating mood picker**
+Clicking the expand icon opens a compact floating panel positioned near the bubble (not a centered dialog). The panel shows nine mood options:
+Normal · Poetic · Humorous · Cosmic · Minimalist · Romantic · Chaotic · Noir · Psychedelic
+
+The currently active mood is visually highlighted. Picking the same mood closes the panel with no side effects.
+
+**Re-send with mood**
+Selecting a different mood:
+1. Appends a new user bubble at the end of the conversation — same original text, new mood badge.
+2. Sends the original prompt to the AI with a one-line mood annotation prepended (e.g. *"I'm in a noir mood — keep things dark, brooding, and atmospheric."*). Normal mood sends no annotation.
+3. Receives and appends a new AI reply as normal.
+
+**Session persistence**
+The mood value is stored alongside the user-chat event in `session_events` (new nullable `mood` column). Legacy rows without a mood are treated as Normal everywhere. Mood is included in `GET /api/session/history` and restored during history hydration.
+
+### Key design decisions
+- The mood annotation is injected server-side in `RecommendationOrchestrationService`, keeping the client simple.
+- The original prompt text (not the annotated version) is stored in the DB and displayed in the bubble.
+- Same-mood no-op is checked in `ChatComponent` before any API call is made.
+- The floating picker uses Angular Material `MatMenu` themed to match Reasonic — dark surface, magenta accent for the selected item, Inter font.
+- Schema migration is a single `ALTER TABLE … ADD COLUMN` that is safe to run on an existing database.
+
+### Main user value
+The user can take any question they have already asked — even one from earlier in the conversation — and instantly hear how the AI would answer it through a completely different lens. It makes the app feel playful, expressive, and deeply personal.
+
+---
+
 ## 4. Cross-Phase Working Rules
 
 These rules apply to **every phase**.

@@ -10,7 +10,7 @@
         <span></span>
       </div>
     }
-    @if (localFilePaths().length > 0) {
+    @if (!clementineUnavailable() && localFilePaths().length > 0) {
       <button
         mat-stroked-button
         class="add-all-btn"
@@ -41,7 +41,9 @@
     <div class="track-list" role="list">
       @for (track of suggestions(); track track.title + track.artist) {
         <div role="listitem">
-          <app-suggestion-card [suggestion]="track" />
+          <app-suggestion-card
+            [suggestion]="track"
+            [clementineUnavailable]="clementineUnavailable()" />
         </div>
       }
     </div>

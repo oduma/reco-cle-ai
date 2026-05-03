@@ -18,10 +18,11 @@ public class SessionHistoryService : ISessionHistoryService
         _settings = settings;
     }
 
-    public Task LogUserChatAsync(string prompt, DateTimeOffset timestamp) =>
+    public Task LogUserChatAsync(string prompt, DateTimeOffset timestamp, string? mood = null) =>
         _repo.InsertEventAsync("user-chat", timestamp, UserLabel,
             content: prompt,
-            artist: null, album: null, title: null, durationSeconds: null);
+            artist: null, album: null, title: null, durationSeconds: null,
+            mood: mood);
 
     public async Task<int> LogAiReplyAsync(string narrative, DateTimeOffset timestamp)
     {

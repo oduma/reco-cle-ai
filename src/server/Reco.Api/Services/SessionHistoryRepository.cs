@@ -64,6 +64,14 @@ public class SessionHistoryRepository : ISessionHistoryRepository
             );
             """;
         await cmd.ExecuteNonQueryAsync();
+
+        // Additive migration: mood column added in Phase 13
+        await using var migCmd = conn.CreateCommand();
+        migCmd.CommandText = """
+            ALTER TABLE session_events ADD COLUMN mood TEXT NULL;
+            """;
+        try { await migCmd.ExecuteNonQueryAsync(); }
+        catch (SqliteException) { /* column already exists — safe to ignore */ }
     }
 
     public async Task<int> InsertEventAsync(
@@ -75,7 +83,8 @@ public class SessionHistoryRepository : ISessionHistoryRepository
         string? album,
         string? title,
         double? durationSeconds,
-        int? conversationBlock = null)
+        int? conversationBlock = null,
+        string? mood = null)
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
@@ -83,20 +92,21 @@ public class SessionHistoryRepository : ISessionHistoryRepository
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT INTO session_events
-                (event_type, timestamp, user_label, content, artist, album, title, duration_seconds, conversation_block)
+                (event_type, timestamp, user_label, content, artist, album, title, duration_seconds, conversation_block, mood)
             VALUES
-                ($type, $ts, $user, $content, $artist, $album, $title, $dur, $block);
+                ($type, $ts, $user, $content, $artist, $album, $title, $dur, $block, $mood);
             SELECT last_insert_rowid();
             """;
         cmd.Parameters.AddWithValue("$type",    eventType);
         cmd.Parameters.AddWithValue("$ts",      timestamp.UtcDateTime.ToString("O"));
         cmd.Parameters.AddWithValue("$user",    userLabel);
-        cmd.Parameters.AddWithValue("$content", (object?)content         ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$artist",  (object?)artist          ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$album",   (object?)album           ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$title",   (object?)title           ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$dur",     (object?)durationSeconds ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$content", (object?)content           ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$artist",  (object?)artist            ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$album",   (object?)album             ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$title",   (object?)title             ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$dur",     (object?)durationSeconds   ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$block",   (object?)conversationBlock ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$mood",    (object?)mood              ?? DBNull.Value);
 
         var result = await cmd.ExecuteScalarAsync();
         return Convert.ToInt32(result);
@@ -147,7 +157,7 @@ public class SessionHistoryRepository : ISessionHistoryRepository
         cmd.CommandText = """
             SELECT id, event_type, timestamp, user_label,
                    content, artist, album, title,
-                   duration_seconds, is_active, conversation_block
+                   duration_seconds, is_active, conversation_block, mood
             FROM   session_events
             WHERE  is_active = 1
             ORDER  BY timestamp ASC, id ASC;
@@ -177,7 +187,8 @@ public class SessionHistoryRepository : ISessionHistoryRepository
                     WHERE  ts.event_type        = 'track-suggestions'
                       AND  ts.conversation_block = e.id
                       AND  ts.is_active          = 1
-                ) THEN 1 ELSE 0 END AS has_suggestions
+                ) THEN 1 ELSE 0 END AS has_suggestions,
+                e.mood
             FROM   session_events e
             WHERE  e.is_active   = 1
               AND  e.event_type IN ('user-chat', 'ai-reply')
@@ -194,7 +205,8 @@ public class SessionHistoryRepository : ISessionHistoryRepository
                 Text:           reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
                 Timestamp:      DateTimeOffset.Parse(reader.GetString(2)),
                 EventId:        reader.GetInt32(0),
-                HasSuggestions: reader.GetInt32(4) == 1
+                HasSuggestions: reader.GetInt32(4) == 1,
+                Mood:           reader.IsDBNull(5) ? null : reader.GetString(5)
             ));
         }
         return turns;
@@ -345,6 +357,7 @@ public class SessionHistoryRepository : ISessionHistoryRepository
         Title:             r.IsDBNull(7)  ? null : r.GetString(7),
         DurationSeconds:   r.IsDBNull(8)  ? null : r.GetDouble(8),
         IsActive:          r.GetInt32(9)  == 1,
-        ConversationBlock: r.IsDBNull(10) ? null : r.GetInt32(10)
+        ConversationBlock: r.IsDBNull(10) ? null : r.GetInt32(10),
+        Mood:              r.IsDBNull(11) ? null : r.GetString(11)
     );
 }

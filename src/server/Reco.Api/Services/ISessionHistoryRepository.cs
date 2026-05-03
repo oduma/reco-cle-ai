@@ -21,7 +21,8 @@ public interface ISessionHistoryRepository
         string? album,
         string? title,
         double? durationSeconds,
-        int? conversationBlock = null);
+        int? conversationBlock = null,
+        string? mood = null);
 
     /// <summary>
     /// Sets conversation_block = <paramref name="aiReplyId"/> on every active row

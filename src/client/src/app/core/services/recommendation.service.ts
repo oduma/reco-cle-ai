@@ -17,6 +17,7 @@ export type Provider = 'gemini' | 'inner-whisper' | 'inner-shout';
 export interface RecommendationRequest {
   prompt: string;
   provider: Provider;
+  mood?: string;
 }
 
 export interface RecommendationResponse {
@@ -35,10 +36,12 @@ export class RecommendationService {
   getRecommendations(
     prompt: string,
     provider: Provider = 'gemini',
+    mood: string = 'normal',
   ): Observable<RecommendationResponse> {
     return this.http.post<RecommendationResponse>('/api/recommendations', {
       prompt,
       provider,
+      mood,
     } satisfies RecommendationRequest);
   }
 }

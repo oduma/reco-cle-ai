@@ -39,7 +39,7 @@
   span {
     display: block;
     width: 3px;
-    background: var(--reco-primary);
+    background: var(--reco-accent);
     border-radius: 1px;
     animation: bar-dance 0.9s ease-in-out infinite;
 
@@ -96,16 +96,12 @@
   &--loading { font-style: italic; color: var(--reco-primary); }
 }
 
-// ── Track grid (4 columns desktop → 1 column mobile) ─────────────────────────
+// ── Track grid — auto-fill reflows as pane width changes ──────────────────────
 
 .track-list {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
-
-  @media (max-width: 767px) {
-    grid-template-columns: 1fr;
-  }
 }
 
 // ── Panel note ────────────────────────────────────────────────────────────────

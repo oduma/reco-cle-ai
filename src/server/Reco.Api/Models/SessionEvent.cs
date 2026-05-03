@@ -11,5 +11,6 @@ public record SessionEvent(
     string? Title,
     double? DurationSeconds,
     bool IsActive,
-    int? ConversationBlock     // id of the ai-reply that closes this block; null until assigned
+    int? ConversationBlock,    // id of the ai-reply that closes this block; null until assigned
+    string? Mood               // null means 'normal'; only populated on user-chat events
 );

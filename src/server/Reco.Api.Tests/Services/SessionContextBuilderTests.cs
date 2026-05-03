@@ -286,5 +286,6 @@ public class SessionContextBuilderTests
             title,
             duration,
             IsActive: true,
-            ConversationBlock: null);
+            ConversationBlock: null,
+            Mood: null);
 }

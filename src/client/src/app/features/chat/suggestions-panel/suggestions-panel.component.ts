@@ -20,6 +20,7 @@ export class SuggestionsPanelComponent {
   error = input(false);
   message = input<string | null>(null);
   loadingLabel = input<string>('Searching your library…');
+  clementineUnavailable = input(false);
 
   addingAll = signal(false);
 
@@ -41,18 +42,24 @@ export class SuggestionsPanelComponent {
     if (paths.length === 0 || this.addingAll()) return;
 
     this.addingAll.set(true);
+    const lockAt = Date.now();
+    const unlock = () => {
+      const elapsed = Date.now() - lockAt;
+      setTimeout(() => this.addingAll.set(false), Math.max(0, 1000 - elapsed));
+    };
+
     this.playlistService.addToPlaylist(paths).subscribe({
       next: () => {
         this.snackBar.open(`Added ${paths.length} track(s) to Clementine`, undefined, { duration: 2500 });
-        this.addingAll.set(false);
         for (const t of tracks) {
           this.sessionService.logTrackEvent('track-added', t.artist, t.album ?? null, t.title, t.durationSeconds ?? null)
             .subscribe({ error: () => {} });
         }
+        unlock();
       },
       error: () => {
         this.snackBar.open('Could not add tracks to Clementine', 'Dismiss', { duration: 4000 });
-        this.addingAll.set(false);
+        unlock();
       },
     });
   }

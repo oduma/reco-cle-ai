@@ -1,4 +1,4 @@
-import { Component, computed, signal, ViewChild, ElementRef, AfterViewChecked, AfterViewInit, OnDestroy, OnInit, effect } from '@angular/core';
+import { Component, computed, signal, ViewChild, ElementRef, AfterViewChecked, AfterViewInit, OnDestroy, OnInit, effect, HostListener } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -15,7 +15,9 @@ import {
 import { SessionService } from '../../core/services/session.service';
 import { SettingsModalComponent } from '../settings/settings-modal.component';
 import { SuggestionsPanelComponent } from './suggestions-panel/suggestions-panel.component';
+import { MoodPickerComponent } from './mood-picker/mood-picker.component';
 import { BoldMarkdownPipe } from '../../core/pipes/bold-markdown.pipe';
+import { Mood } from '../../core/models/mood';
 
 interface Message {
   role: 'user' | 'model';
@@ -23,6 +25,7 @@ interface Message {
   timestamp: Date;
   eventId?: number;
   hasSuggestions?: boolean;
+  mood?: Mood;
 }
 
 const PROVIDER_KEY = 'reco-provider';
@@ -50,6 +53,10 @@ const LOADING_PHRASES = [
   'Waiting for the DJ to unmute',
 ];
 
+// Minimum right-pane width so at least one card is always visible
+const ONE_CARD_MIN_PX = 220;
+const SPLIT_MIN_PCT   = 25;
+
 @Component({
   selector: 'app-chat',
   standalone: true,
@@ -62,14 +69,16 @@ const LOADING_PHRASES = [
     MatInputModule,
     MatTooltipModule,
     SuggestionsPanelComponent,
+    MoodPickerComponent,
     BoldMarkdownPipe,
   ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
 })
 export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, OnDestroy {
-  @ViewChild('messageList') private messageListRef!: ElementRef<HTMLElement>;
-  @ViewChild('promptInput') private promptInputRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('messageList')    private messageListRef!: ElementRef<HTMLElement>;
+  @ViewChild('promptInput')    private promptInputRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('splitContainer') private containerRef!: ElementRef<HTMLElement>;
 
   protected messages = signal<Message[]>([]);
   protected prompt = signal('');
@@ -100,6 +109,16 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     this.memoryTotal() > 0 ? this.memoryUsed() / this.memoryTotal() : 0
   );
   protected memoryHigh  = computed(() => this.memoryFill() > 0.8);
+
+  // Split-pane divider
+  protected splitPercent = signal(40);
+  private dragging = false;
+  private containerWidth = 0;
+
+  // Derived from the server message: true when Clementine DB is unavailable
+  protected clementineUnavailable = computed(() =>
+    this.suggestionsMessage()?.includes('local library is currently unavailable') === true
+  );
 
   private shouldScroll = false;
   private shouldFocusInput = false;
@@ -161,11 +180,33 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     }
     if (this.shouldFocusInput) {
       this.shouldFocusInput = false;
-      // Defer focus outside the current change-detection cycle to avoid
-      // ExpressionChangedAfterItHasBeenCheckedError when onFocus mutates signals.
       setTimeout(() => this.promptInputRef?.nativeElement?.focus(), 0);
     }
   }
+
+  // ── Divider drag ─────────────────────────────────────────────────────────────
+
+  protected onDividerMousedown(event: MouseEvent): void {
+    this.dragging = true;
+    this.containerWidth = this.containerRef?.nativeElement?.getBoundingClientRect().width ?? 0;
+    event.preventDefault();
+  }
+
+  @HostListener('document:mousemove', ['$event'])
+  onMouseMove(event: MouseEvent): void {
+    if (!this.dragging || this.containerWidth === 0) return;
+    const rect   = this.containerRef.nativeElement.getBoundingClientRect();
+    const rawPct = ((event.clientX - rect.left) / this.containerWidth) * 100;
+    const maxPct = ((this.containerWidth - ONE_CARD_MIN_PX) / this.containerWidth) * 100;
+    this.splitPercent.set(Math.min(Math.max(rawPct, SPLIT_MIN_PCT), maxPct));
+  }
+
+  @HostListener('document:mouseup')
+  onMouseUp(): void {
+    this.dragging = false;
+  }
+
+  // ── Existing methods ──────────────────────────────────────────────────────────
 
   protected setProvider(value: Provider): void {
     this.provider.set(value);
@@ -204,9 +245,6 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     const text = this.prompt().trim();
     if (!text || this.loading()) return;
 
-    this.messages.update(msgs => [...msgs, { role: 'user', text, timestamp: new Date() }]);
-
-    // Record in history, skipping consecutive duplicates
     if (this.promptHistory[this.promptHistory.length - 1] !== text) {
       this.promptHistory.push(text);
       if (this.promptHistory.length > this.HISTORY_LIMIT) this.promptHistory.shift();
@@ -215,6 +253,22 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     this.currentDraft = '';
 
     this.prompt.set('');
+    this._executeRequest(text, 'normal');
+  }
+
+  protected onMoodSelected(mood: Mood, msg: Message): void {
+    if (mood === (msg.mood ?? 'normal')) return;
+    this.resendWithMood(msg.text, mood);
+  }
+
+  protected resendWithMood(originalText: string, mood: Mood): void {
+    if (this.loading()) return;
+    this._executeRequest(originalText, mood);
+  }
+
+  private _executeRequest(displayText: string, mood: Mood): void {
+    this.messages.update(msgs => [...msgs, { role: 'user', text: displayText, timestamp: new Date(), mood }]);
+
     this.loading.set(true);
     this.error.set(null);
     this.errorIsRateLimit.set(false);
@@ -227,7 +281,7 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     this.suggestionsMessage.set(null);
     this.hasSuggestions.set(true);
 
-    this.recommendationService.getRecommendations(text, this.provider()).pipe(
+    this.recommendationService.getRecommendations(displayText, this.provider(), mood).pipe(
       retry({
         count: 4,
         delay: (err, retryCount) => {
@@ -338,7 +392,6 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
         this.prompt.set(inserted);
         inputEl.value = inserted;
       } else {
-        // backspace/delete on hint — restore hint unchanged
         inputEl.value = this.tryLineHint();
       }
       return;
@@ -371,7 +424,7 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
 
     this.sessionService.getEnrichedSuggestions(eventId).subscribe({
       next: enriched => {
-        if (this.activeReplyId() !== eventId) return; // race guard
+        if (this.activeReplyId() !== eventId) return;
         this.suggestions.set(enriched.suggestions);
         this.suggestionsMessage.set(enriched.message);
         this.suggestionsLoading.set(false);
@@ -383,7 +436,6 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
       },
     });
 
-    // fire-and-forget persistence
     this.sessionService.setActiveReply(eventId).subscribe({ error: () => {} });
   }
 
@@ -398,6 +450,7 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
         timestamp: new Date(t.timestamp),
         eventId: t.eventId,
         hasSuggestions: t.hasSuggestions,
+        mood: (t.mood ?? 'normal') as Mood,
       })));
 
       this.activeReplyId.set(history.activeReplyId);

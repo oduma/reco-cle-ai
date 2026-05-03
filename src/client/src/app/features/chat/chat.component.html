@@ -12,9 +12,11 @@
       (change)="setProvider($event.value)"
       aria-label="AI provider">
       <mat-button-toggle value="inner-whisper" aria-label="Use local llama model (Inner Whisper)">
+        <img src="/icons/llama3-logo.png" class="provider-icon" alt="" aria-hidden="true" />
         Inner Whisper
       </mat-button-toggle>
       <mat-button-toggle value="inner-shout" aria-label="Use local Gemma model (Inner Shout)">
+        <img src="/icons/gemma4.png" class="provider-icon" alt="" aria-hidden="true" />
         Inner Shout
       </mat-button-toggle>
       <mat-button-toggle value="gemini" aria-label="Use Gemini cloud model (Cosmic Voice)">
@@ -54,9 +56,9 @@
     </div>
   }
 
-  <div class="split-layout">
+  <div class="split-layout" #splitContainer [style.--split-pct]="splitPercent() + '%'">
 
-    <!-- Left pane: conversation (40%) -->
+    <!-- Left pane: conversation -->
     <section class="pane pane--chat" aria-label="Conversation">
       <div class="message-list" #messageList>
         @if (messages().length === 0 && !loading()) {
@@ -88,6 +90,10 @@
               </div>
             } @else {
               <div class="message-bubble">
+                <app-mood-picker
+                  class="mood-badge"
+                  [currentMood]="msg.mood ?? 'normal'"
+                  (moodSelected)="onMoodSelected($event, msg)" />
                 <span>{{ msg.text }}</span>
                 <span class="message-time">{{ formatMessageTime(msg.timestamp) }}</span>
               </div>
@@ -144,7 +150,10 @@
       </div>
     </section>
 
-    <!-- Right pane: recommendations (60%) -->
+    <!-- Draggable divider -->
+    <div class="split-divider" (mousedown)="onDividerMousedown($event)" aria-hidden="true"></div>
+
+    <!-- Right pane: recommendations -->
     <section class="pane pane--reco" aria-label="Recommendations">
       @if (hasSuggestions()) {
         <app-suggestions-panel
@@ -153,6 +162,7 @@
           [error]="suggestionsError()"
           [message]="suggestionsMessage()"
           [loadingLabel]="loadingPhrase()"
+          [clementineUnavailable]="clementineUnavailable()"
         />
       } @else {
         <div class="reco-empty-state">

@@ -4,5 +4,6 @@ namespace Reco.Api.DTOs;
 
 public record RecommendationRequest(
     [Required][MinLength(1)] string Prompt,
-    string? Provider
+    string? Provider,
+    string? Mood
 );

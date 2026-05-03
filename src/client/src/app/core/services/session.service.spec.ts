@@ -106,8 +106,8 @@ describe('SessionService', () => {
     it('returns populated turns and activeReplyId', () => {
       const mockHistory: SessionHistoryResponse = {
         turns: [
-          { role: 'user', text: 'jazz', timestamp: '2026-05-02T10:00:00Z', eventId: 1, hasSuggestions: false },
-          { role: 'model', text: 'Here is jazz', timestamp: '2026-05-02T10:00:05Z', eventId: 2, hasSuggestions: true },
+          { role: 'user', text: 'jazz', timestamp: '2026-05-02T10:00:00Z', eventId: 1, hasSuggestions: false, mood: 'normal' },
+          { role: 'model', text: 'Here is jazz', timestamp: '2026-05-02T10:00:05Z', eventId: 2, hasSuggestions: true, mood: null },
         ],
         activeReplyId: 2,
       };

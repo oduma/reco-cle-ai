@@ -10,5 +10,6 @@ public record HistoryTurnDto(
     string Text,
     DateTimeOffset Timestamp,
     int EventId,
-    bool HasSuggestions
+    bool HasSuggestions,
+    string? Mood
 );

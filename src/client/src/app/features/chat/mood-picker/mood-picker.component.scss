@@ -1,0 +1,73 @@
+:host {
+  display: inline-flex;
+}
+
+.mood-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.6);
+
+  &:hover {
+    color: #fff;
+  }
+}
+
+.mood-trigger-label {
+  font-family: var(--reco-font);
+  font-size: 0.58rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mood-trigger-icon {
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
+  line-height: 1;
+}
+
+.mood-menu {
+  background: var(--reco-surface-1);
+  border: 1px solid var(--reco-border);
+  border-radius: 10px;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.mood-menu-title {
+  padding: 8px 14px 4px;
+  font-family: var(--reco-font);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--reco-text-muted);
+  pointer-events: none;
+  user-select: none;
+}
+
+.mood-menu-item {
+  font-family: var(--reco-font);
+  font-size: 0.82rem;
+  color: var(--reco-text);
+
+  &--active {
+    color: var(--reco-accent);
+    font-weight: 600;
+  }
+}
+
+.mood-check {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}

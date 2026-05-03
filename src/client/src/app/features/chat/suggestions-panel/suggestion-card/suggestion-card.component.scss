@@ -1,5 +1,6 @@
 .tile {
   width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   border-radius: 10px;
@@ -79,7 +80,6 @@
   opacity: 0;
   transition: opacity 0.15s ease;
 
-  // Override Material icon-button sizing
   --mdc-icon-button-icon-size: 14px;
   --mdc-icon-button-state-layer-size: 28px;
 
@@ -93,6 +93,7 @@
 // ── Track info ────────────────────────────────────────────────────────────────
 
 .tile-info {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;

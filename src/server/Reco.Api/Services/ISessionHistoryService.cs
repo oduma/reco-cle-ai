@@ -6,7 +6,7 @@ namespace Reco.Api.Services;
 public interface ISessionHistoryService
 {
     /// <summary>Records a user prompt to the session log.</summary>
-    Task LogUserChatAsync(string prompt, DateTimeOffset timestamp);
+    Task LogUserChatAsync(string prompt, DateTimeOffset timestamp, string? mood = null);
 
     /// <summary>
     /// Records an AI narrative to the session log, closes the current conversation block,

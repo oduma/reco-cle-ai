@@ -1,0 +1,16 @@
+<button class="mood-trigger" [matMenuTriggerFor]="picker" aria-label="Change mood">
+  <span class="mood-trigger-label">{{ moodLabel() }}</span>
+  <mat-icon class="mood-trigger-icon">expand_circle_down</mat-icon>
+</button>
+
+<mat-menu #picker="matMenu" class="mood-menu" xPosition="before">
+  <div class="mood-menu-title" (click)="$event.stopPropagation()">Change my mood</div>
+  @for (m of moods; track m.value) {
+    <button mat-menu-item class="mood-menu-item"
+            [class.mood-menu-item--active]="currentMood() === m.value"
+            (click)="select(m.value)">
+      <mat-icon class="mood-check">{{ currentMood() === m.value ? 'check' : '' }}</mat-icon>
+      {{ m.label }}
+    </button>
+  }
+</mat-menu>

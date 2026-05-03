@@ -1,7 +1,7 @@
 <div
   class="tile"
   [class.tile--local]="suggestion().inLocalLibrary"
-  [class.tile--discovery]="!suggestion().inLocalLibrary">
+  [class.tile--discovery]="!suggestion().inLocalLibrary && !clementineUnavailable()">
 
   <!-- Album art area (square) -->
   <div class="tile-art">
@@ -52,7 +52,7 @@
         <span>YouTube</span>
       </a>
     }
-    @if (suggestion().inLocalLibrary) {
+    @if (suggestion().inLocalLibrary && !clementineUnavailable()) {
       <button
         mat-icon-button
         class="footer-action footer-action--btn"

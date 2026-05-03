@@ -15,6 +15,8 @@ import { SessionService } from '../../../../core/services/session.service';
 })
 export class SuggestionCardComponent {
   suggestion = input.required<TrackSuggestion>();
+  clementineUnavailable = input(false);
+
   addingToPlaylist = signal(false);
   artFailed = signal(false);
 
@@ -55,16 +57,22 @@ export class SuggestionCardComponent {
     if (!s.filePath || this.addingToPlaylist()) return;
 
     this.addingToPlaylist.set(true);
+    const lockAt = Date.now();
+    const unlock = () => {
+      const elapsed = Date.now() - lockAt;
+      setTimeout(() => this.addingToPlaylist.set(false), Math.max(0, 1000 - elapsed));
+    };
+
     this.playlistService.addToPlaylist([s.filePath]).subscribe({
       next: () => {
         this.snackBar.open(`Added to Clementine: ${s.artist} – ${s.title}`, undefined, { duration: 2000 });
-        this.addingToPlaylist.set(false);
         this.sessionService.logTrackEvent('track-added', s.artist, s.album ?? null, s.title, s.durationSeconds ?? null)
           .subscribe({ error: () => {} });
+        unlock();
       },
       error: () => {
         this.snackBar.open('Could not add to Clementine playlist', 'Dismiss', { duration: 4000 });
-        this.addingToPlaylist.set(false);
+        unlock();
       },
     });
   }

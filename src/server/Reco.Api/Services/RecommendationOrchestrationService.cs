@@ -42,9 +42,23 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         _logger               = logger;
     }
 
+    private static readonly IReadOnlyDictionary<string, string> MoodAnnotations =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["poetic"]      = "I'm in a poetic mood — please respond with lyrical, flowing language.",
+            ["humorous"]    = "I'm feeling playful and humorous — bring some wit to your response.",
+            ["cosmic"]      = "I'm in a cosmic mood — think vast, universal, and transcendent.",
+            ["minimalist"]  = "I'm in a minimalist mood — keep your response focused and stripped back.",
+            ["romantic"]    = "I'm feeling romantic — bring warmth, emotion, and longing to your reply.",
+            ["chaotic"]     = "I'm in a chaotic mood — be bold, unpredictable, and eclectic.",
+            ["noir"]        = "I'm in a noir mood — keep things dark, brooding, and atmospheric.",
+            ["psychedelic"] = "I'm in a psychedelic mood — go surreal, swirling, and mind-expanding.",
+        };
+
     public async Task<RecommendationResponse> GetRecommendationsAsync(
         string prompt,
         string? preferredProvider = null,
+        string? mood = null,
         CancellationToken cancellationToken = default)
     {
         var isInnerWhisper = string.Equals(preferredProvider, "inner-whisper", StringComparison.OrdinalIgnoreCase);
@@ -56,9 +70,14 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             : await _settings.GetStringAsync("OLLAMA_WHISPER_MODEL", "llama3.1:8b");
 
         var sessionContext = await _sessionContextBuilder.BuildAsync(cancellationToken);
+
+        var moodLine = (!string.IsNullOrWhiteSpace(mood) && MoodAnnotations.TryGetValue(mood, out var annotation))
+            ? $"{annotation}\n\n"
+            : string.Empty;
+
         var enrichedPrompt = sessionContext.Preamble is not null
-            ? $"{sessionContext.Preamble}\n\nMy question: {prompt}"
-            : prompt;
+            ? $"{sessionContext.Preamble}\n\n{moodLine}My question: {prompt}"
+            : $"{moodLine}{prompt}";
 
         _logger.LogInformation(
             "[Recommendations] Requesting | provider: {Provider} | history turns: {HistoryCount} | preamble: {HasPreamble} | prompt: {Length} chars",
@@ -94,7 +113,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             providerUsed = "gemini";
         }
 
-        await _sessionHistory.LogUserChatAsync(prompt, promptTimestamp);
+        await _sessionHistory.LogUserChatAsync(prompt, promptTimestamp, mood);
         var aiReplyId = await _sessionHistory.LogAiReplyAsync(result.Narrative, DateTimeOffset.UtcNow);
 
         var rawTracks = result.Tracks.Select(t => new RawTrack(t.Title, t.Artist, t.Album)).ToList();

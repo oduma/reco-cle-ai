@@ -23,6 +23,7 @@ export interface HistoryTurn {
   timestamp: string; // ISO 8601 from server
   eventId: number;
   hasSuggestions: boolean;
+  mood: string | null;
 }
 
 export interface SessionHistoryResponse {

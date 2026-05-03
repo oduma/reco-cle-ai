@@ -31,11 +31,12 @@ dotnet publish "$repoRoot\src\server\Reco.Api\Reco.Api.csproj" `
     --output $distOut
 if ($LASTEXITCODE -ne 0) { Write-Error ".NET publish failed."; exit 1 }
 
-# Copy the Linux start script into dist so it travels with the binary
-Copy-Item "$PSScriptRoot\start.sh" "$distOut\start.sh"
-Write-Host "Copied start.sh to dist"
+# Copy the start script and deployment guide into dist so they travel with the binary
+Copy-Item "$PSScriptRoot\start.sh"        "$distOut\start.sh"
+Copy-Item "$PSScriptRoot\deploy-linux.md" "$distOut\deploy-linux.md"
+Write-Host "Copied start.sh and deploy-linux.md to dist"
 
 Write-Host "`n=== Done ===" -ForegroundColor Green
 Write-Host "Linux build output: $distOut"
 Write-Host "Copy the entire 'linux\dist\' folder to your Linux machine."
-Write-Host "Then follow the instructions in linux\deploy-linux.md."
+Write-Host "Then follow the instructions in linux\dist\deploy-linux.md (or linux\deploy-linux.md)."
