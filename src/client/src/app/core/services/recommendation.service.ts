@@ -18,6 +18,8 @@ export interface RecommendationRequest {
   prompt: string;
   provider: Provider;
   mood?: string;
+  locationContext?: string | null;
+  weatherContext?: string | null;
 }
 
 export interface RecommendationResponse {
@@ -37,11 +39,15 @@ export class RecommendationService {
     prompt: string,
     provider: Provider = 'gemini',
     mood: string = 'normal',
+    locationContext?: string | null,
+    weatherContext?: string | null,
   ): Observable<RecommendationResponse> {
     return this.http.post<RecommendationResponse>('/api/recommendations', {
       prompt,
       provider,
       mood,
+      locationContext: locationContext ?? null,
+      weatherContext: weatherContext ?? null,
     } satisfies RecommendationRequest);
   }
 }

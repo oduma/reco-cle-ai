@@ -1,6 +1,8 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,6 +11,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { forkJoin } from 'rxjs';
 import { SettingsService } from '../../core/services/settings.service';
+import { Provider } from '../../core/services/recommendation.service';
 
 export interface SettingField {
   key: string;
@@ -89,12 +92,16 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   },
 ];
 
+const PROVIDER_KEY = 'reco-provider';
+
 @Component({
   selector: 'app-settings-modal',
   standalone: true,
   imports: [
     ReactiveFormsModule,
     MatButtonModule,
+    MatButtonToggleModule,
+    MatCheckboxModule,
     MatDialogModule,
     MatFormFieldModule,
     MatIconModule,
@@ -112,6 +119,15 @@ export class SettingsModalComponent implements OnInit {
   protected saveError = signal<string | null>(null);
   protected groups    = SETTINGS_GROUPS;
   protected defaults  = signal<Record<string, string>>({});
+
+  // Provider toggle (localStorage-backed, takes effect immediately)
+  protected provider = signal<Provider>(
+    (localStorage.getItem(PROVIDER_KEY) as Provider) ?? 'gemini',
+  );
+
+  // Environmental context checkboxes (DB-persisted, saved with the form)
+  protected useLocation = signal(false);
+  protected useWeather  = signal(false);
 
   // Tracks which password fields are revealed
   protected revealed = signal<Record<string, boolean>>({});
@@ -141,6 +157,8 @@ export class SettingsModalComponent implements OnInit {
           if (this.form.contains(entry.key)) {
             this.form.get(entry.key)?.setValue(entry.value ?? '');
           }
+          if (entry.key === 'USE_USER_LOCATION')  this.useLocation.set(entry.value === 'true');
+          if (entry.key === 'USE_CURRENT_WEATHER') this.useWeather.set(entry.value === 'true');
         }
         this.loading.set(false);
       },
@@ -148,6 +166,17 @@ export class SettingsModalComponent implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  protected selectProvider(p: Provider): void {
+    this.provider.set(p);
+    localStorage.setItem(PROVIDER_KEY, p);
+  }
+
+  // Returns the currently configured model label for provider buttons
+  protected modelLabel(key: string, fallback: string): string {
+    const v = (this.form.get(key)?.value as string)?.trim();
+    return v || fallback;
   }
 
   protected isRevealed(key: string): boolean {
@@ -180,6 +209,10 @@ export class SettingsModalComponent implements OnInit {
     for (const key of Object.keys(raw)) {
       payload[key] = raw[key].trim() === '' ? null : raw[key].trim();
     }
+
+    // Environmental context toggles — always stored as explicit "true"/"false"
+    payload['USE_USER_LOCATION']  = this.useLocation()  ? 'true' : 'false';
+    payload['USE_CURRENT_WEATHER'] = this.useWeather() ? 'true' : 'false';
 
     this.settingsService.updateSettings({ settings: payload }).subscribe({
       next: () => {

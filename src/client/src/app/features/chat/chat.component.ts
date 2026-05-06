@@ -1,6 +1,5 @@
 import { Component, computed, signal, ViewChild, ElementRef, AfterViewChecked, AfterViewInit, OnDestroy, OnInit, effect, HostListener, NgZone } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,6 +12,8 @@ import {
   Provider,
 } from '../../core/services/recommendation.service';
 import { SessionService } from '../../core/services/session.service';
+import { SettingsService } from '../../core/services/settings.service';
+import { GeoWeatherService } from '../../core/services/geo-weather.service';
 import { SettingsModalComponent } from '../settings/settings-modal.component';
 import { MusicalDiaryModalComponent } from '../diary/musical-diary-modal/musical-diary-modal.component';
 import { SuggestionsPanelComponent } from './suggestions-panel/suggestions-panel.component';
@@ -63,7 +64,6 @@ const SPLIT_MIN_PCT   = 25;
   standalone: true,
   imports: [
     MatButtonModule,
-    MatButtonToggleModule,
     MatDialogModule,
     MatFormFieldModule,
     MatIconModule,
@@ -111,6 +111,9 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
   );
   protected usedFallback = signal(false);
 
+  private useLocation = signal(false);
+  private useWeather  = signal(false);
+
   protected memoryUsed  = signal(0);
   protected memoryTotal = signal(25);
   protected memoryFill  = computed(() =>
@@ -146,6 +149,8 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
   constructor(
     private recommendationService: RecommendationService,
     private sessionService: SessionService,
+    private settingsService: SettingsService,
+    protected geoWeatherService: GeoWeatherService,
     private dialog: MatDialog,
     private ngZone: NgZone,
   ) {
@@ -160,6 +165,7 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
 
   async ngOnInit(): Promise<void> {
     this.refreshMemory();
+    this.loadEnvSettings();
     try {
       const res = await fetch('/trylines.txt');
       const text = await res.text();
@@ -231,9 +237,16 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
 
   // ── Existing methods ──────────────────────────────────────────────────────────
 
-  protected setProvider(value: Provider): void {
-    this.provider.set(value);
-    localStorage.setItem(PROVIDER_KEY, value);
+  private loadEnvSettings(): void {
+    this.settingsService.getSettings().subscribe({
+      next: resp => {
+        const find = (key: string) =>
+          resp.settings.find(s => s.key === key)?.value ?? 'false';
+        this.useLocation.set(find('USE_USER_LOCATION') === 'true');
+        this.useWeather.set(find('USE_CURRENT_WEATHER') === 'true');
+      },
+      error: () => {},
+    });
   }
 
   protected refreshMemory(): void {
@@ -261,6 +274,12 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     this.dialog.open(SettingsModalComponent, {
       disableClose: false,
       autoFocus: false,
+    }).afterClosed().subscribe(saved => {
+      if (saved) {
+        const stored = localStorage.getItem(PROVIDER_KEY) as Provider;
+        if (stored) this.provider.set(stored);
+        this.loadEnvSettings();
+      }
     });
   }
 
@@ -329,7 +348,10 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     this.suggestionsMessage.set(null);
     this.hasSuggestions.set(true);
 
-    this.recommendationService.getRecommendations(displayText, this.provider(), mood).pipe(
+    const locationCtx = this.useLocation() ? this.geoWeatherService.locationContext() : null;
+    const weatherCtx  = this.useWeather()  ? this.geoWeatherService.weatherContext()  : null;
+
+    this.recommendationService.getRecommendations(displayText, this.provider(), mood, locationCtx, weatherCtx).pipe(
       retry({
         count: 4,
         delay: (err, retryCount) => {

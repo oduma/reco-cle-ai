@@ -62,42 +62,24 @@
   letter-spacing: 0.01em;
 }
 
-// ── Provider toggle ───────────────────────────────────────────────────────────
+// ── Location display ──────────────────────────────────────────────────────────
 
-.provider-toggle {
-  --mat-standard-button-toggle-height: 32px;
-  --mat-standard-button-toggle-background-color:                transparent;
-  --mat-standard-button-toggle-text-color:                      var(--reco-text-muted);
-  --mat-standard-button-toggle-selected-state-background-color: var(--reco-primary-dim);
-  --mat-standard-button-toggle-selected-state-text-color:       var(--reco-primary);
-  --mat-standard-button-toggle-divider-color:                   var(--reco-border);
+.location-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-family: var(--reco-font);
+  color: var(--reco-text-muted);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 
-  border: 1px solid var(--reco-border) !important;
-  border-radius: 8px;
-  overflow: hidden;
-
-  .mat-button-toggle {
-    font-size: 0.72rem;
-    font-weight: 600;
-    font-family: var(--reco-font);
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+  mat-icon {
+    font-size: 0.95rem;
+    width: 0.95rem;
+    height: 0.95rem;
+    color: var(--reco-primary);
   }
-
-  .mat-button-toggle-button {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 0 10px;
-  }
-}
-
-.provider-icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  opacity: 0.85;
-  vertical-align: middle;
 }
 
 // ── Memory widget ─────────────────────────────────────────────────────────────

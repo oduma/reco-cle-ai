@@ -142,6 +142,8 @@ chmod 600 .env.local
 | `RECOMMENDATION_SUGGESTION_CACHE_MINUTES` | No | `60` | |
 | `SESSION_MEMORY_SIZE` | No | `25` | Max AI replies kept in memory |
 | `SESSION_DEFAULT_TRACK_DURATION_SECONDS` | No | `210` | Assumed duration for tracks without Clementine data |
+| `USE_USER_LOCATION` | No | `false` | UI-configurable only; send user city/country to AI with each recommendation |
+| `USE_CURRENT_WEATHER` | No | `false` | UI-configurable only; send current weather interpretation to AI with each recommendation |
 
 ---
 

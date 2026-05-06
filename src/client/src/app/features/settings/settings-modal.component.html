@@ -10,6 +10,54 @@
       <span>Loading settings…</span>
     </div>
   } @else {
+    <!-- Active Voice selector -->
+    <section class="settings-group">
+      <h3 class="settings-group-title">Active Voice</h3>
+      <mat-button-toggle-group
+        class="provider-toggle"
+        [value]="provider()"
+        (change)="selectProvider($event.value)"
+        aria-label="AI provider">
+        <mat-button-toggle value="inner-whisper" aria-label="Inner Whisper">
+          <img src="/icons/llama3-logo.png" class="provider-icon" alt="" aria-hidden="true" />
+          {{ modelLabel('OLLAMA_WHISPER_MODEL', 'llama3.1:8b') }}
+        </mat-button-toggle>
+        <mat-button-toggle value="inner-shout" aria-label="Inner Shout">
+          <img src="/icons/gemma4.png" class="provider-icon" alt="" aria-hidden="true" />
+          {{ modelLabel('OLLAMA_SHOUT_MODEL', 'gemma4:e4b') }}
+        </mat-button-toggle>
+        <mat-button-toggle value="gemini" aria-label="Cosmic Voice">
+          <img src="/icons/gemini.svg" class="provider-icon" alt="" aria-hidden="true" />
+          {{ modelLabel('GEMINI_MODEL', 'gemini-2.5-pro') }}
+        </mat-button-toggle>
+      </mat-button-toggle-group>
+    </section>
+
+    <!-- Environmental Context toggles -->
+    <section class="settings-group">
+      <h3 class="settings-group-title">Environmental Context</h3>
+      <p class="settings-group-hint">
+        When enabled, your location and/or the current weather are included with each
+        recommendation request so the AI can factor your surroundings into its suggestions.
+      </p>
+      <div class="checkbox-row">
+        <mat-checkbox
+          [checked]="useLocation()"
+          (change)="useLocation.set($event.checked)"
+          aria-label="Send user location to AI">
+          Use User Location
+        </mat-checkbox>
+      </div>
+      <div class="checkbox-row">
+        <mat-checkbox
+          [checked]="useWeather()"
+          (change)="useWeather.set($event.checked)"
+          aria-label="Send current weather to AI">
+          Use Current Weather
+        </mat-checkbox>
+      </div>
+    </section>
+
     <form [formGroup]="form" class="settings-form" (submit)="$event.preventDefault()">
       @for (group of groups; track group.title) {
         <section class="settings-group">

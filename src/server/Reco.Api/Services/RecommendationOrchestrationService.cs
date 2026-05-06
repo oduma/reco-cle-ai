@@ -49,6 +49,8 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         string prompt,
         string? preferredProvider = null,
         string? mood = null,
+        string? locationContext = null,
+        string? weatherContext = null,
         CancellationToken cancellationToken = default)
     {
         var isInnerWhisper = string.Equals(preferredProvider, "inner-whisper", StringComparison.OrdinalIgnoreCase);
@@ -63,10 +65,11 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
 
         var annotation = await _aiPrompts.GetMoodAnnotationAsync(mood);
         var moodLine   = annotation is not null ? $"{annotation}\n\n" : string.Empty;
+        var envLine    = BuildEnvironmentalContext(locationContext, weatherContext);
 
         var enrichedPrompt = sessionContext.Preamble is not null
-            ? $"{sessionContext.Preamble}\n\n{moodLine}My question: {prompt}"
-            : $"{moodLine}{prompt}";
+            ? $"{sessionContext.Preamble}\n\n{envLine}{moodLine}My question: {prompt}"
+            : $"{envLine}{moodLine}{prompt}";
 
         _logger.LogInformation(
             "[Recommendations] Requesting | provider: {Provider} | history turns: {HistoryCount} | preamble: {HasPreamble} | prompt: {Length} chars",
@@ -158,6 +161,14 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         return tracks
             .Select((t, i) => t with { AlbumArtUrl = artUrls[i] })
             .ToList();
+    }
+
+    private static string BuildEnvironmentalContext(string? location, string? weather)
+    {
+        var parts = new List<string>(2);
+        if (!string.IsNullOrWhiteSpace(location)) parts.Add(location.Trim());
+        if (!string.IsNullOrWhiteSpace(weather))  parts.Add(weather.Trim());
+        return parts.Count > 0 ? string.Join(" ", parts) + "\n\n" : string.Empty;
     }
 
     private static bool IsOllamaFailure(Exception ex) =>
