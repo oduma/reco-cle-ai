@@ -5,9 +5,6 @@ namespace Reco.Api.Services;
 
 public interface ISessionHistoryRepository
 {
-    /// <summary>Creates the session_events and session_state tables if they do not exist.</summary>
-    Task EnsureCreatedAsync();
-
     /// <summary>
     /// Inserts a new session event and returns its auto-generated id.
     /// Pass <paramref name="conversationBlock"/> to pre-assign the block (used for track-suggestions events).

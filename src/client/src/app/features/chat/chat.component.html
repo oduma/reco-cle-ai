@@ -83,19 +83,28 @@
         @for (msg of messages(); track $index) {
           <div class="message" [class.message--user]="msg.role === 'user'" [class.message--model]="msg.role === 'model'">
             @if (msg.role === 'model') {
-              <div class="message-bubble"
-                   [class.message-bubble--active]="msg.eventId !== undefined && msg.eventId === activeReplyId()"
-                   [class.message-bubble--has-rewind]="msg.hasSuggestions && msg.eventId !== undefined && msg.eventId !== activeReplyId()">
-                @if (msg.hasSuggestions && msg.eventId !== undefined && msg.eventId !== activeReplyId()) {
-                  <button mat-icon-button class="rewind-btn"
-                          (click)="activateReply(msg.eventId!)"
-                          matTooltip="Show these suggestions"
-                          aria-label="Show suggestions for this reply">
-                    <mat-icon>history</mat-icon>
+              <div class="model-msg-group">
+                <div class="message-bubble"
+                     [class.message-bubble--active]="msg.eventId !== undefined && msg.eventId === activeReplyId()"
+                     [class.message-bubble--has-rewind]="msg.hasSuggestions && msg.eventId !== undefined && msg.eventId !== activeReplyId()"
+                     [class.message-bubble--clamped]="isTruncated($index)"
+                     [attr.data-msg-index]="$index">
+                  @if (msg.hasSuggestions && msg.eventId !== undefined && msg.eventId !== activeReplyId()) {
+                    <button mat-icon-button class="rewind-btn"
+                            (click)="activateReply(msg.eventId!)"
+                            matTooltip="Show these suggestions"
+                            aria-label="Show suggestions for this reply">
+                      <mat-icon>history</mat-icon>
+                    </button>
+                  }
+                  <div [innerHTML]="msg.text | boldMarkdown"></div>
+                  <span class="message-time">{{ formatMessageTime(msg.timestamp) }}</span>
+                </div>
+                @if (showToggle($index)) {
+                  <button class="show-more-btn" type="button" (click)="toggleExpand($index)">
+                    {{ expandedBubbles().has($index) ? 'Show Less' : 'Show More...' }}
                   </button>
                 }
-                <div [innerHTML]="msg.text | boldMarkdown"></div>
-                <span class="message-time">{{ formatMessageTime(msg.timestamp) }}</span>
               </div>
             } @else {
               <div class="message-bubble">

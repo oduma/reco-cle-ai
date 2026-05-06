@@ -71,4 +71,23 @@ public class AppSettingsRepository : IAppSettingsRepository
         cmd.Parameters.AddWithValue("$key", key);
         await cmd.ExecuteNonQueryAsync();
     }
+
+    public async Task SeedDefaultsAsync(IReadOnlyDictionary<string, string> defaults)
+    {
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync();
+
+        foreach (var (key, value) in defaults)
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT OR IGNORE INTO app_settings (key, value, updated_at)
+                VALUES ($key, $value, $ts);
+                """;
+            cmd.Parameters.AddWithValue("$key",   key);
+            cmd.Parameters.AddWithValue("$value", value);
+            cmd.Parameters.AddWithValue("$ts",    DateTimeOffset.UtcNow.ToString("O"));
+            await cmd.ExecuteNonQueryAsync();
+        }
+    }
 }

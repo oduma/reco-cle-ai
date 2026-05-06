@@ -26,4 +26,8 @@ export class SettingsService {
   updateSettings(payload: UpdateSettingsRequest): Observable<void> {
     return this.http.put<void>('/api/settings', payload);
   }
+
+  getDefaults(): Observable<Record<string, string>> {
+    return this.http.get<Record<string, string>>('/api/settings/defaults');
+  }
 }

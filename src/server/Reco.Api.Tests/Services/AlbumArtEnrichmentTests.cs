@@ -54,10 +54,13 @@ public class AlbumArtEnrichmentTests
         settings.GetIntAsync(Arg.Any<string>(), Arg.Any<int>())
                 .Returns(callInfo => Task.FromResult(callInfo.ArgAt<int>(1)));
 
+        var aiPrompts = Substitute.For<IAiPromptService>();
+        aiPrompts.GetMoodAnnotationAsync(Arg.Any<string?>()).Returns(Task.FromResult<string?>(null));
+
         return new RecommendationOrchestrationService(
             gemini, ollama, clementine, cache, lastFm,
             sessionCtxBuilder, sessionHistory,
-            settings,
+            settings, aiPrompts,
             NullLogger<RecommendationOrchestrationService>.Instance);
     }
 
@@ -97,10 +100,13 @@ public class AlbumArtEnrichmentTests
         settings.GetIntAsync(Arg.Any<string>(), Arg.Any<int>())
                 .Returns(callInfo => Task.FromResult(callInfo.ArgAt<int>(1)));
 
+        var aiPrompts = Substitute.For<IAiPromptService>();
+        aiPrompts.GetMoodAnnotationAsync(Arg.Any<string?>()).Returns(Task.FromResult<string?>(null));
+
         var service = new RecommendationOrchestrationService(
             gemini, ollama, clementine, cache, lastFm,
             sessionCtxBuilder, sessionHistory,
-            settings,
+            settings, aiPrompts,
             NullLogger<RecommendationOrchestrationService>.Instance);
 
         return (service, sessionHistory);

@@ -321,6 +321,89 @@ Any settings you configured via the in-app settings panel are stored in `reasoni
 That file also lives in the app folder on the Linux machine and is **not** overwritten
 by `rsync` unless you explicitly delete it.
 
+### Database migrations on startup
+
+From this release onward, Reasonic uses **EF Core migrations** to keep the database
+schema up to date. There is nothing manual to do — migrations run automatically when
+the app starts.
+
+**What happens at startup:**
+
+1. The app checks whether your `reasonic.db` has already been migrated (by looking for
+   the `__EFMigrationsHistory` table that EF Core maintains).
+2. **First-ever upgrade from a pre-migration version**: if your database has the existing
+   tables but no migration history, the app stamps it as already at the baseline schema
+   and then applies only the new migrations on top. Your data is untouched.
+3. **Fresh install**: all migrations run in order, creating the complete schema from scratch.
+4. **Subsequent upgrades**: only migrations that have not yet been applied are run.
+
+After the migration runs, you should see log lines like:
+
+```
+Applying migration '20260506182629_InitialSchema'.   ← only on a brand-new install
+Applying migration '20260506182637_CleanupRenamedPromptKeys'.
+```
+
+Or, if you are upgrading from a pre-migration database:
+
+```
+Stamping existing database at InitialSchema baseline.
+Applying migration '20260506182637_CleanupRenamedPromptKeys'.
+```
+
+**What `CleanupRenamedPromptKeys` does to your settings:**
+
+| Old key (removed) | Action |
+|---|---|
+| `GEMINI_RECOMMENDATION_INSTRUCTION` | Value copied to `RECOMMENDATION_INSTRUCTION` if you had customised it, then deleted |
+| `OLLAMA_RECOMMENDATION_INSTRUCTION` | Deleted (both providers now share one prompt) |
+| `CHAT_SYSTEM_INSTRUCTION` | Deleted (dead code removed in this release) |
+
+If you had customised `GEMINI_RECOMMENDATION_INSTRUCTION`, your text is automatically
+carried over to `RECOMMENDATION_INSTRUCTION`. Nothing else in your settings is affected.
+
+> **If something goes wrong with the database**: stop the app, make a backup copy of
+> `reasonic.db`, then restart. The migration is wrapped in a transaction — either it
+> fully applies or the database is left unchanged.
+
+---
+
+## Developer: adding a new migration
+
+When a future phase changes the database schema or needs to migrate seed data, add a
+migration on the **Windows development machine** before building:
+
+```powershell
+# From the repo root, restore the local dotnet-ef tool (once per machine)
+cd src\server
+dotnet tool restore
+
+# Create a new migration (from inside the API project)
+cd Reco.Api
+dotnet ef migrations add Phase16_YourDescription
+```
+
+This generates three files inside `Migrations\` — commit all of them. The migration
+runs automatically on the next app startup via `MigrateAsync()`.
+
+For **data migrations** (renaming keys, backfilling values), open the generated
+`Up()` method and add `migrationBuilder.Sql("...")` calls. The `Down()` method is
+optional for data migrations.
+
+```csharp
+protected override void Up(MigrationBuilder migrationBuilder)
+{
+    // Schema change — generated automatically by EF:
+    migrationBuilder.AddColumn<string>("new_column", "some_table", nullable: true);
+
+    // Data migration — written by hand:
+    migrationBuilder.Sql("""
+        UPDATE app_settings SET value = 'new-default'
+        WHERE key = 'SOME_KEY' AND value = 'old-default';
+        """);
+}
+```
+
 ---
 
 ## Troubleshooting

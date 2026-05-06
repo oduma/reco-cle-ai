@@ -4,5 +4,6 @@ namespace Reco.Api.DTOs;
 
 public record DiaryEntryRequest(
     [Required] string Date,
-    bool Force = false
+    bool Force = false,
+    string? Provider = null
 );

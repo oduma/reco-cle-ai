@@ -62,6 +62,15 @@
         <img src="/icons/clementine_addmore.png" class="footer-icon" alt="" aria-hidden="true" />
       </button>
     }
+    <a
+      [href]="lyricsUrl()"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="footer-action footer-action--lyrics"
+      [attr.aria-label]="'Find lyrics for ' + suggestion().title + ' by ' + suggestion().artist + ' on Genius'"
+      (click)="$event.stopPropagation()">
+      <mat-icon class="lyrics-icon">lyrics</mat-icon>
+    </a>
   </div>
 
 </div>

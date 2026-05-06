@@ -15,29 +15,56 @@
         <section class="settings-group">
           <h3 class="settings-group-title">{{ group.title }}</h3>
           @for (field of group.fields; track field.key) {
-            <mat-form-field appearance="outline" class="settings-field">
-              <mat-label>{{ field.label }}</mat-label>
-              <input
-                matInput
-                [type]="fieldType(field)"
-                [formControlName]="field.key"
-                [placeholder]="field.placeholder ?? ''"
-                autocomplete="off"
-                spellcheck="false"
-              />
-              @if (field.type === 'password') {
+            <div class="field-row" [class.field-row--resettable]="group.hasResets">
+              <mat-form-field appearance="outline" class="settings-field">
+                <mat-label>{{ field.label }}</mat-label>
+                @if (field.type === 'textarea') {
+                  <textarea
+                    matInput
+                    [formControlName]="field.key"
+                    [placeholder]="field.placeholder ?? ''"
+                    rows="5"
+                    autocomplete="off"
+                    spellcheck="false"
+                    class="settings-textarea"
+                  ></textarea>
+                } @else {
+                  <input
+                    matInput
+                    [type]="fieldType(field)"
+                    [formControlName]="field.key"
+                    [placeholder]="field.placeholder ?? ''"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  @if (field.type === 'password') {
+                    <button
+                      matSuffix
+                      mat-icon-button
+                      type="button"
+                      [matTooltip]="isRevealed(field.key) ? 'Hide' : 'Show'"
+                      (click)="toggleReveal(field.key)"
+                      [attr.aria-label]="isRevealed(field.key) ? 'Hide value' : 'Show value'">
+                      <mat-icon>{{ isRevealed(field.key) ? 'visibility_off' : 'visibility' }}</mat-icon>
+                    </button>
+                  }
+                }
+                @if (!group.hasResets) {
+                  <mat-hint>Leave blank to use environment variable or default</mat-hint>
+                }
+              </mat-form-field>
+              @if (group.hasResets) {
                 <button
-                  matSuffix
                   mat-icon-button
                   type="button"
-                  [matTooltip]="isRevealed(field.key) ? 'Hide' : 'Show'"
-                  (click)="toggleReveal(field.key)"
-                  [attr.aria-label]="isRevealed(field.key) ? 'Hide value' : 'Show value'">
-                  <mat-icon>{{ isRevealed(field.key) ? 'visibility_off' : 'visibility' }}</mat-icon>
+                  class="reset-field-btn"
+                  (click)="resetField(field.key)"
+                  matTooltip="Reset to default"
+                  [attr.aria-label]="'Reset ' + field.label + ' to default'">
+                  <mat-icon>restart_alt</mat-icon>
                 </button>
               }
-              <mat-hint>Leave blank to use environment variable or default</mat-hint>
-            </mat-form-field>
+            </div>
           }
         </section>
       }

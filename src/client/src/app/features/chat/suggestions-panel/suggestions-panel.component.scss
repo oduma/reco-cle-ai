@@ -15,16 +15,21 @@
   align-items: center;
   gap: 6px;
   margin-bottom: 12px;
-  color: var(--reco-text-muted);
+  color: var(--reco-text);
   font-family: var(--reco-font);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .panel-title {
   flex: 1;
+  background: linear-gradient(90deg, var(--reco-primary), var(--reco-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 // ── Animated music bars (loading indicator in header) ────────────────────────

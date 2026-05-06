@@ -5,155 +5,41 @@ using Reco.Api.Models;
 
 namespace Reco.Api.Services;
 
-public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
+public class GeminiGatewayService : LlmGatewayBase, IGeminiGatewayService
 {
     private readonly HttpClient _httpClient;
     private readonly IAppSettingsService _settings;
-    private readonly ILogger<GeminiGatewayService> _logger;
-
-    private static readonly string ChatSystemInstruction =
-        "You are an expert music discovery assistant. Help users discover music by providing thoughtful, " +
-        "personalized recommendations. When suggesting music, include artist names, album names where " +
-        "relevant, and brief explanations of why you're recommending them. Be conversational, engaging, " +
-        "and genuinely knowledgeable about music across all genres and eras. " +
-        "Always wrap every track title and artist name in **double asterisks** — for example: **Kind of Blue** by **Miles Davis**." +
-        AiSystemInstructions.SessionMemoryInstruction;
-
-    private static string BuildRecommendationSystemInstruction(int minTracks, int maxTracks) =>
-        "You are an expert music discovery assistant. For each user request you must respond with a JSON object " +
-        "containing exactly two fields:\n" +
-        "- \"narrative\": a warm, conversational paragraph recommending music, written like a knowledgeable curator. " +
-        "Mention specific tracks and explain why you are recommending them. " +
-        "Wrap every track title and artist name in **double asterisks** — for example: **Kind of Blue** by **Miles Davis**.\n" +
-        "- \"tracks\": an array of the specific tracks you mention in your narrative. Each track must have " +
-        "\"title\", \"artist\", and optionally \"album\".\n" +
-        $"Return between {minTracks} and {maxTracks} tracks. " +
-        "Always return valid JSON and nothing else." +
-        AiSystemInstructions.SessionMemoryInstruction;
+    private readonly IAiPromptService _prompts;
 
     public GeminiGatewayService(
         HttpClient httpClient,
         IAppSettingsService settings,
+        IAiPromptService prompts,
         ILogger<GeminiGatewayService> logger)
+        : base(logger)
     {
         _httpClient = httpClient;
-        _settings = settings;
-        _logger = logger;
+        _settings   = settings;
+        _prompts    = prompts;
     }
 
-    private const int MaxRetries = 3;
-    private static readonly TimeSpan[] FallbackRetryDelays =
-        [TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(30)];
+    // ── GetMusicRecommendationAsync ───────────────────────────────────────────
 
-    public async Task<string> SendMessageAsync(
+    public override async Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
         IReadOnlyList<ConversationTurn> history,
         CancellationToken cancellationToken = default)
     {
-        var apiKey  = await _settings.GetStringAsync("GEMINI_API_KEY", "");
-        var model   = await _settings.GetStringAsync("GEMINI_MODEL",   "gemini-2.5-pro");
-        var baseUrl = await _settings.GetStringAsync("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com");
-
-        var url          = $"{baseUrl}/v1beta/models/{model}:generateContent?key={apiKey}";
-        var sanitizedUrl = $"{baseUrl}/v1beta/models/{model}:generateContent?key=***";
-
-        var contents = history
-            .Select(t => new { role = t.Role, parts = new[] { new { text = t.Text } } })
-            .Append(new { role = "user", parts = new[] { new { text = prompt } } })
-            .Cast<object>()
-            .ToList();
-
-        var requestBody = new
-        {
-            systemInstruction = new { parts = new[] { new { text = ChatSystemInstruction } } },
-            contents
-        };
-
-        for (var attempt = 0; attempt <= MaxRetries; attempt++)
-        {
-            try
-            {
-                _logger.LogInformation(
-                    "[Gemini/Chat] → POST {Url} | history turns: {HistoryCount} | prompt length: {PromptLength} chars",
-                    sanitizedUrl, history.Count, prompt.Length);
-
-                var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
-
-                _logger.LogInformation("[Gemini/Chat] ← {StatusCode} ({Status})",
-                    (int)response.StatusCode, response.StatusCode);
-
-                string? errorBody = null;
-                if (!response.IsSuccessStatusCode)
-                {
-                    var retryAfter = response.Headers.RetryAfter?.Delta ?? response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow;
-                    errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                    _logger.LogWarning("[Gemini/Chat] Error response body: {Body}", errorBody);
-                    if (retryAfter.HasValue)
-                        _logger.LogWarning("[Gemini/Chat] Retry-After: {RetryAfter}", retryAfter.Value);
-                }
-
-                if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && attempt < MaxRetries)
-                {
-                    var delay = ParseRetryDelay(errorBody) ?? FallbackRetryDelays[attempt];
-                    _logger.LogWarning("[Gemini/Chat] Rate limit hit, retrying in {Delay}s (attempt {Attempt}/{Max})",
-                        delay.TotalSeconds, attempt + 1, MaxRetries);
-                    await Task.Delay(delay, cancellationToken);
-                    continue;
-                }
-
-                response.EnsureSuccessStatusCode();
-
-                var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
-
-                var text = json
-                    .GetProperty("candidates")[0]
-                    .GetProperty("content")
-                    .GetProperty("parts")[0]
-                    .GetProperty("text")
-                    .GetString();
-
-                _logger.LogInformation("[Gemini/Chat] Response text length: {Length} chars", text?.Length ?? 0);
-                return text ?? throw new InvalidOperationException("Gemini returned an empty response text.");
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogError(ex, "HTTP error calling Gemini API for model {Model}", model);
-                throw;
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException and not InvalidOperationException)
-            {
-                _logger.LogError(ex, "Unexpected error calling Gemini API");
-                throw;
-            }
-        }
-
-        throw new HttpRequestException("Gemini rate limit exceeded after retries.",
-            null, System.Net.HttpStatusCode.TooManyRequests);
-    }
-
-    public async Task<MusicRecommendationResult> GetMusicRecommendationAsync(
-        string prompt,
-        IReadOnlyList<ConversationTurn> history,
-        CancellationToken cancellationToken = default)
-    {
-        var apiKey    = await _settings.GetStringAsync("GEMINI_API_KEY",  "");
-        var model     = await _settings.GetStringAsync("GEMINI_MODEL",    "gemini-2.5-pro");
-        var baseUrl   = await _settings.GetStringAsync("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com");
+        var (url, sanitizedUrl) = await BuildUrlAsync();
         var minTracks = await _settings.GetIntAsync("RECOMMENDATION_MIN_TRACKS", 10);
         var maxTracks = await _settings.GetIntAsync("RECOMMENDATION_MAX_TRACKS", 20);
+        var systemInstruction = await _prompts.BuildRecommendationPromptAsync(
+            AiPromptDefaults.RecommendationInstructionKey, minTracks, maxTracks);
 
-        var url          = $"{baseUrl}/v1beta/models/{model}:generateContent?key={apiKey}";
-        var sanitizedUrl = $"{baseUrl}/v1beta/models/{model}:generateContent?key=***";
-
-        var contents = history
-            .Select(t => new { role = t.Role, parts = new[] { new { text = t.Text } } })
-            .Append(new { role = "user", parts = new[] { new { text = prompt } } })
-            .Cast<object>()
-            .ToList();
-
+        var contents    = BuildContents(history, prompt);
         var requestBody = new
         {
-            systemInstruction = new { parts = new[] { new { text = BuildRecommendationSystemInstruction(minTracks, maxTracks) } } },
+            systemInstruction = new { parts = new[] { new { text = systemInstruction } } },
             contents,
             generationConfig = new
             {
@@ -166,7 +52,7 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
                         narrative = new { type = "STRING" },
                         tracks = new
                         {
-                            type = "ARRAY",
+                            type  = "ARRAY",
                             items = new
                             {
                                 type = "OBJECT",
@@ -185,194 +71,72 @@ public class GeminiGatewayService : IGeminiGatewayService, ILLMGatewayService
             }
         };
 
-        for (var attempt = 0; attempt <= MaxRetries; attempt++)
-        {
-            _logger.LogInformation(
-                "[Gemini/Reco] → POST {Url} | history turns: {HistoryCount} | prompt length: {PromptLength} chars",
-                sanitizedUrl, history.Count, prompt.Length);
+        Logger.LogInformation("[Gemini/Reco] → POST {Url} | history: {H} turns | prompt: {L} chars",
+            sanitizedUrl, history.Count, prompt.Length);
 
-            var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
-
-            _logger.LogInformation("[Gemini/Reco] ← {StatusCode} ({Status})",
-                (int)response.StatusCode, response.StatusCode);
-
-            string? errorBody = null;
-            if (!response.IsSuccessStatusCode)
+        return await ExecuteWithRetryAsync(
+            ct => _httpClient.PostAsJsonAsync(url, requestBody, ct),
+            async (response, ct) =>
             {
-                errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogWarning("[Gemini/Reco] Error response body: {Body}", errorBody);
-            }
-
-            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && attempt < MaxRetries)
-            {
-                var delay = ParseRetryDelay(errorBody) ?? FallbackRetryDelays[attempt];
-                _logger.LogWarning("[Gemini/Reco] Rate limit hit, retrying in {Delay}s (attempt {Attempt}/{Max})",
-                    delay.TotalSeconds, attempt + 1, MaxRetries);
-                await Task.Delay(delay, cancellationToken);
-                continue;
-            }
-
-            response.EnsureSuccessStatusCode();
-
-            var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
-            var rawText = json
-                .GetProperty("candidates")[0]
-                .GetProperty("content")
-                .GetProperty("parts")[0]
-                .GetProperty("text")
-                .GetString() ?? "{}";
-
-            _logger.LogInformation("[Gemini/Reco] Response JSON length: {Length} chars", rawText.Length);
-            return ParseMusicRecommendation(rawText);
-        }
-
-        throw new HttpRequestException("Gemini rate limit exceeded after retries.",
-            null, System.Net.HttpStatusCode.TooManyRequests);
+                var json    = await ReadJsonAsync(response, ct);
+                var rawText = json.GetProperty("candidates")[0]
+                                  .GetProperty("content").GetProperty("parts")[0]
+                                  .GetProperty("text").GetString() ?? "{}";
+                Logger.LogInformation("[Gemini/Reco] Response JSON: {L} chars", rawText.Length);
+                return ParseMusicRecommendation(rawText);
+            },
+            "Gemini/Reco",
+            cancellationToken);
     }
 
-    private const string DiarySystemInstruction =
-        "You are a lyrical diarist writing in the voice of the listener. " +
-        "Given a list of music prompts a person explored during a single day, " +
-        "write a short, reflective diary entry — no more than three paragraphs — " +
-        "in first person, as though the listener is writing in their own journal. " +
-        "Capture the emotional arc of the day through the lens of the music they sought out. " +
-        "Be literary, evocative, and personal. Do not list tracks or artists. " +
-        "Do not include a date heading. Write only the diary prose, nothing else.";
+    // ── GenerateDiaryEntryAsync ───────────────────────────────────────────────
 
-    public async Task<string> GenerateDiaryEntryAsync(
+    public override async Task<string> GenerateDiaryEntryAsync(
         string userPrompt,
+        string? model = null,
         CancellationToken cancellationToken = default)
     {
-        var apiKey  = await _settings.GetStringAsync("GEMINI_API_KEY",  "");
-        var model   = await _settings.GetStringAsync("GEMINI_MODEL",    "gemini-2.5-pro");
-        var baseUrl = await _settings.GetStringAsync("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com");
-
-        var url          = $"{baseUrl}/v1beta/models/{model}:generateContent?key={apiKey}";
-        var sanitizedUrl = $"{baseUrl}/v1beta/models/{model}:generateContent?key=***";
+        var (url, sanitizedUrl) = await BuildUrlAsync();
+        var systemInstruction   = await _prompts.GetPromptAsync(AiPromptDefaults.DiarySystemInstructionKey);
 
         var requestBody = new
         {
-            systemInstruction = new { parts = new[] { new { text = DiarySystemInstruction } } },
-            contents = new[]
-            {
-                new { role = "user", parts = new[] { new { text = userPrompt } } }
-            }
+            systemInstruction = new { parts = new[] { new { text = systemInstruction } } },
+            contents = new[] { new { role = "user", parts = new[] { new { text = userPrompt } } } }
         };
 
-        for (var attempt = 0; attempt <= MaxRetries; attempt++)
-        {
-            try
+        Logger.LogInformation("[Gemini/Diary] → POST {Url} | prompt: {L} chars", sanitizedUrl, userPrompt.Length);
+
+        return await ExecuteWithRetryAsync(
+            ct => _httpClient.PostAsJsonAsync(url, requestBody, ct),
+            async (response, ct) =>
             {
-                _logger.LogInformation(
-                    "[Gemini/Diary] → POST {Url} | prompt length: {PromptLength} chars",
-                    sanitizedUrl, userPrompt.Length);
-
-                var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
-
-                _logger.LogInformation("[Gemini/Diary] ← {StatusCode} ({Status})",
-                    (int)response.StatusCode, response.StatusCode);
-
-                string? errorBody = null;
-                if (!response.IsSuccessStatusCode)
-                {
-                    errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                    _logger.LogWarning("[Gemini/Diary] Error response body: {Body}", errorBody);
-                }
-
-                if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && attempt < MaxRetries)
-                {
-                    var delay = ParseRetryDelay(errorBody) ?? FallbackRetryDelays[attempt];
-                    _logger.LogWarning("[Gemini/Diary] Rate limit hit, retrying in {Delay}s (attempt {Attempt}/{Max})",
-                        delay.TotalSeconds, attempt + 1, MaxRetries);
-                    await Task.Delay(delay, cancellationToken);
-                    continue;
-                }
-
-                response.EnsureSuccessStatusCode();
-
-                var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
-                var text = json
-                    .GetProperty("candidates")[0]
-                    .GetProperty("content")
-                    .GetProperty("parts")[0]
-                    .GetProperty("text")
-                    .GetString();
-
-                _logger.LogInformation("[Gemini/Diary] Response text length: {Length} chars", text?.Length ?? 0);
-                return text ?? throw new InvalidOperationException("Gemini returned an empty diary response.");
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogError(ex, "HTTP error calling Gemini API for diary entry");
-                throw;
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException and not InvalidOperationException)
-            {
-                _logger.LogError(ex, "Unexpected error calling Gemini API for diary entry");
-                throw;
-            }
-        }
-
-        throw new HttpRequestException("Gemini rate limit exceeded after retries.",
-            null, System.Net.HttpStatusCode.TooManyRequests);
+                var json = await ReadJsonAsync(response, ct);
+                var text = json.GetProperty("candidates")[0]
+                               .GetProperty("content").GetProperty("parts")[0]
+                               .GetProperty("text").GetString();
+                Logger.LogInformation("[Gemini/Diary] Response: {L} chars", text?.Length ?? 0);
+                return text ?? throw new InvalidOperationException("Gemini returned empty diary text.");
+            },
+            "Gemini/Diary",
+            cancellationToken);
     }
 
-    private MusicRecommendationResult ParseMusicRecommendation(string rawJson)
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private async Task<(string url, string sanitizedUrl)> BuildUrlAsync()
     {
-        try
-        {
-            var root = JsonDocument.Parse(rawJson).RootElement;
-
-            var narrative = root.TryGetProperty("narrative", out var n)
-                ? n.GetString() ?? string.Empty
-                : string.Empty;
-
-            var tracks = new List<TrackSuggestion>();
-            if (root.TryGetProperty("tracks", out var tracksEl) &&
-                tracksEl.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var t in tracksEl.EnumerateArray())
-                {
-                    var title  = t.TryGetProperty("title",  out var ti) ? ti.GetString() ?? "" : "";
-                    var artist = t.TryGetProperty("artist", out var ar) ? ar.GetString() ?? "" : "";
-                    var album  = t.TryGetProperty("album",  out var al) ? al.GetString() : null;
-
-                    if (title.Length > 0 && artist.Length > 0)
-                        tracks.Add(new TrackSuggestion(title, artist, album));
-                }
-            }
-
-            _logger.LogInformation("[Gemini/Reco] Parsed {Count} tracks from response", tracks.Count);
-            return new MusicRecommendationResult(narrative, tracks);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[Gemini/Reco] Failed to parse recommendation JSON: {Raw}", rawJson);
-            return new MusicRecommendationResult(string.Empty, []);
-        }
+        var apiKey  = await _settings.GetStringAsync("GEMINI_API_KEY",  "");
+        var gemModel = await _settings.GetStringAsync("GEMINI_MODEL",   "gemini-2.5-pro");
+        var baseUrl = await _settings.GetStringAsync("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com");
+        var url          = $"{baseUrl}/v1beta/models/{gemModel}:generateContent?key={apiKey}";
+        var sanitizedUrl = $"{baseUrl}/v1beta/models/{gemModel}:generateContent?key=***";
+        return (url, sanitizedUrl);
     }
 
-    private static TimeSpan? ParseRetryDelay(string? errorBody)
-    {
-        if (string.IsNullOrEmpty(errorBody)) return null;
-        try
-        {
-            var doc = JsonDocument.Parse(errorBody);
-            if (!doc.RootElement.TryGetProperty("error", out var error)) return null;
-            if (!error.TryGetProperty("details", out var details)) return null;
-
-            foreach (var detail in details.EnumerateArray())
-            {
-                if (detail.TryGetProperty("retryDelay", out var delayProp))
-                {
-                    var raw = delayProp.GetString();
-                    if (raw != null && raw.EndsWith('s') &&
-                        double.TryParse(raw[..^1], out var seconds) && seconds > 0)
-                        return TimeSpan.FromSeconds(seconds);
-                }
-            }
-        }
-        catch { /* non-critical: fall back to hardcoded delays */ }
-        return null;
-    }
+    private static List<object> BuildContents(IReadOnlyList<ConversationTurn> history, string prompt) =>
+        history
+            .Select(t => (object)new { role = t.Role, parts = new[] { new { text = t.Text } } })
+            .Append(new { role = "user", parts = new[] { new { text = prompt } } })
+            .ToList();
 }

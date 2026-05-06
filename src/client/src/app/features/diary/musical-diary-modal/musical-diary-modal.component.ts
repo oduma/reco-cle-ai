@@ -2,7 +2,7 @@ import {
   Component, OnInit, signal, computed, inject,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -35,6 +35,7 @@ function toDateKey(d: Date): string {
 export class MusicalDiaryModalComponent implements OnInit {
   private readonly diaryService = inject(DiaryService);
   private readonly dialogRef    = inject(MatDialogRef<MusicalDiaryModalComponent>);
+  private readonly dialogData   = inject<{ provider?: string } | null>(MAT_DIALOG_DATA, { optional: true });
 
   protected readonly activeDates  = signal<Set<string>>(new Set());
   protected readonly selectedDate = signal<Date | null>(null);
@@ -89,7 +90,8 @@ export class MusicalDiaryModalComponent implements OnInit {
     this.entryError.set(null);
     this.entryContent.set(null);
 
-    this.diaryService.getOrGenerateEntry(date, force).subscribe({
+    const provider = this.dialogData?.provider;
+    this.diaryService.getOrGenerateEntry(date, force, provider).subscribe({
       next: res => {
         this.entryContent.set(res.content);
         this.isFromCache.set(res.isFromCache);

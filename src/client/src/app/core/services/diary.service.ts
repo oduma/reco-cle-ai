@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 export interface DiaryEntryRequest {
   date: string;
   force: boolean;
+  provider?: string;
 }
 
 export interface DiaryEntryResponse {
@@ -21,7 +22,7 @@ export class DiaryService {
     return this.http.get<string[]>('/api/diary/active-dates');
   }
 
-  getOrGenerateEntry(date: string, force = false): Observable<DiaryEntryResponse> {
-    return this.http.post<DiaryEntryResponse>('/api/diary/entry', { date, force } satisfies DiaryEntryRequest);
+  getOrGenerateEntry(date: string, force = false, provider?: string): Observable<DiaryEntryResponse> {
+    return this.http.post<DiaryEntryResponse>('/api/diary/entry', { date, force, provider });
   }
 }

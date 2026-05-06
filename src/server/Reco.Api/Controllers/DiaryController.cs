@@ -35,7 +35,7 @@ public class DiaryController : ControllerBase
         try
         {
             var response = await _diary.GetOrGenerateEntryAsync(
-                request.Date, request.Force, cancellationToken);
+                request.Date, request.Force, request.Provider, cancellationToken);
             return Ok(response);
         }
         catch (ArgumentException ex)

@@ -18,6 +18,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
     private readonly ISessionContextBuilder _sessionContextBuilder;
     private readonly ISessionHistoryService _sessionHistory;
     private readonly IAppSettingsService _settings;
+    private readonly IAiPromptService _aiPrompts;
     private readonly ILogger<RecommendationOrchestrationService> _logger;
 
     public RecommendationOrchestrationService(
@@ -29,31 +30,20 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         ISessionContextBuilder sessionContextBuilder,
         ISessionHistoryService sessionHistory,
         IAppSettingsService settings,
+        IAiPromptService aiPrompts,
         ILogger<RecommendationOrchestrationService> logger)
     {
-        _geminiGateway        = geminiGateway;
-        _ollamaGateway        = ollamaGateway;
-        _clementine           = clementine;
-        _suggestionCache      = suggestionCache;
-        _lastFm               = lastFm;
+        _geminiGateway         = geminiGateway;
+        _ollamaGateway         = ollamaGateway;
+        _clementine            = clementine;
+        _suggestionCache       = suggestionCache;
+        _lastFm                = lastFm;
         _sessionContextBuilder = sessionContextBuilder;
-        _sessionHistory       = sessionHistory;
-        _settings             = settings;
-        _logger               = logger;
+        _sessionHistory        = sessionHistory;
+        _settings              = settings;
+        _aiPrompts             = aiPrompts;
+        _logger                = logger;
     }
-
-    private static readonly IReadOnlyDictionary<string, string> MoodAnnotations =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["poetic"]      = "I'm in a poetic mood — please respond with lyrical, flowing language.",
-            ["humorous"]    = "I'm feeling playful and humorous — bring some wit to your response.",
-            ["cosmic"]      = "I'm in a cosmic mood — think vast, universal, and transcendent.",
-            ["minimalist"]  = "I'm in a minimalist mood — keep your response focused and stripped back.",
-            ["romantic"]    = "I'm feeling romantic — bring warmth, emotion, and longing to your reply.",
-            ["chaotic"]     = "I'm in a chaotic mood — be bold, unpredictable, and eclectic.",
-            ["noir"]        = "I'm in a noir mood — keep things dark, brooding, and atmospheric.",
-            ["psychedelic"] = "I'm in a psychedelic mood — go surreal, swirling, and mind-expanding.",
-        };
 
     public async Task<RecommendationResponse> GetRecommendationsAsync(
         string prompt,
@@ -71,9 +61,8 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
 
         var sessionContext = await _sessionContextBuilder.BuildAsync(cancellationToken);
 
-        var moodLine = (!string.IsNullOrWhiteSpace(mood) && MoodAnnotations.TryGetValue(mood, out var annotation))
-            ? $"{annotation}\n\n"
-            : string.Empty;
+        var annotation = await _aiPrompts.GetMoodAnnotationAsync(mood);
+        var moodLine   = annotation is not null ? $"{annotation}\n\n" : string.Empty;
 
         var enrichedPrompt = sessionContext.Preamble is not null
             ? $"{sessionContext.Preamble}\n\n{moodLine}My question: {prompt}"

@@ -7,18 +7,20 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { forkJoin } from 'rxjs';
 import { SettingsService } from '../../core/services/settings.service';
 
 export interface SettingField {
   key: string;
   label: string;
-  type: 'text' | 'password' | 'number';
+  type: 'text' | 'password' | 'number' | 'textarea';
   placeholder?: string;
 }
 
 export interface SettingsGroup {
   title: string;
   fields: SettingField[];
+  hasResets?: boolean;
 }
 
 export const SETTINGS_GROUPS: SettingsGroup[] = [
@@ -33,9 +35,9 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   {
     title: 'Ollama (Inner Voices)',
     fields: [
-      { key: 'OLLAMA_BASE_URL',     label: 'Base URL',           type: 'text',   placeholder: 'http://localhost:11434' },
-      { key: 'OLLAMA_WHISPER_MODEL', label: 'Inner Whisper model', type: 'text',  placeholder: 'llama3.1:8b' },
-      { key: 'OLLAMA_SHOUT_MODEL',   label: 'Inner Shout model',   type: 'text',  placeholder: 'gemma4:e4b' },
+      { key: 'OLLAMA_BASE_URL',      label: 'Base URL',            type: 'text', placeholder: 'http://localhost:11434' },
+      { key: 'OLLAMA_WHISPER_MODEL', label: 'Inner Whisper model', type: 'text', placeholder: 'llama3.1:8b' },
+      { key: 'OLLAMA_SHOUT_MODEL',   label: 'Inner Shout model',   type: 'text', placeholder: 'gemma4:e4b' },
     ],
   },
   {
@@ -48,17 +50,17 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   {
     title: 'Clementine',
     fields: [
-      { key: 'CLEMENTINE_DB_PATH',         label: 'Database path',      type: 'text',   placeholder: 'Path to clementine.db copy' },
-      { key: 'CLEMENTINE_EXE_PATH',        label: 'Executable path',    type: 'text',   placeholder: 'Path to clementine.exe' },
-      { key: 'CLEMENTINE_MATCH_THRESHOLD', label: 'Match threshold',    type: 'number', placeholder: '0.75' },
+      { key: 'CLEMENTINE_DB_PATH',         label: 'Database path',   type: 'text',   placeholder: 'Path to clementine.db copy' },
+      { key: 'CLEMENTINE_EXE_PATH',        label: 'Executable path', type: 'text',   placeholder: 'Path to clementine.exe' },
+      { key: 'CLEMENTINE_MATCH_THRESHOLD', label: 'Match threshold', type: 'number', placeholder: '0.75' },
     ],
   },
   {
     title: 'Recommendations',
     fields: [
-      { key: 'RECOMMENDATION_MIN_TRACKS',                label: 'Min tracks',        type: 'number', placeholder: '10' },
-      { key: 'RECOMMENDATION_MAX_TRACKS',                label: 'Max tracks',        type: 'number', placeholder: '20' },
-      { key: 'RECOMMENDATION_SUGGESTION_CACHE_MINUTES',  label: 'Suggestion cache (min)', type: 'number', placeholder: '60' },
+      { key: 'RECOMMENDATION_MIN_TRACKS',               label: 'Min tracks',            type: 'number', placeholder: '10' },
+      { key: 'RECOMMENDATION_MAX_TRACKS',               label: 'Max tracks',            type: 'number', placeholder: '20' },
+      { key: 'RECOMMENDATION_SUGGESTION_CACHE_MINUTES', label: 'Suggestion cache (min)', type: 'number', placeholder: '60' },
     ],
   },
   {
@@ -66,6 +68,23 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     fields: [
       { key: 'SESSION_MEMORY_SIZE',                    label: 'Memory size (replies)',      type: 'number', placeholder: '25' },
       { key: 'SESSION_DEFAULT_TRACK_DURATION_SECONDS', label: 'Default track duration (s)', type: 'number', placeholder: '210' },
+    ],
+  },
+  {
+    title: 'AI Settings',
+    hasResets: true,
+    fields: [
+      { key: 'SESSION_MEMORY_INSTRUCTION',         label: 'Session memory instruction',      type: 'textarea' },
+      { key: 'RECOMMENDATION_INSTRUCTION', label: 'Recommendation prompt', type: 'textarea' },
+      { key: 'DIARY_SYSTEM_INSTRUCTION',           label: 'Diary system instruction',        type: 'textarea' },
+      { key: 'MOOD_ANNOTATION_POETIC',      label: 'Mood annotation: Poetic',      type: 'text' },
+      { key: 'MOOD_ANNOTATION_HUMOROUS',    label: 'Mood annotation: Humorous',    type: 'text' },
+      { key: 'MOOD_ANNOTATION_COSMIC',      label: 'Mood annotation: Cosmic',      type: 'text' },
+      { key: 'MOOD_ANNOTATION_MINIMALIST',  label: 'Mood annotation: Minimalist',  type: 'text' },
+      { key: 'MOOD_ANNOTATION_ROMANTIC',    label: 'Mood annotation: Romantic',    type: 'text' },
+      { key: 'MOOD_ANNOTATION_CHAOTIC',     label: 'Mood annotation: Chaotic',     type: 'text' },
+      { key: 'MOOD_ANNOTATION_NOIR',        label: 'Mood annotation: Noir',        type: 'text' },
+      { key: 'MOOD_ANNOTATION_PSYCHEDELIC', label: 'Mood annotation: Psychedelic', type: 'text' },
     ],
   },
 ];
@@ -88,10 +107,11 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
 })
 export class SettingsModalComponent implements OnInit {
   protected form!: FormGroup;
-  protected loading  = signal(true);
-  protected saving   = signal(false);
+  protected loading   = signal(true);
+  protected saving    = signal(false);
   protected saveError = signal<string | null>(null);
-  protected groups   = SETTINGS_GROUPS;
+  protected groups    = SETTINGS_GROUPS;
+  protected defaults  = signal<Record<string, string>>({});
 
   // Tracks which password fields are revealed
   protected revealed = signal<Record<string, boolean>>({});
@@ -111,9 +131,13 @@ export class SettingsModalComponent implements OnInit {
     }
     this.form = this.fb.group(controls);
 
-    this.settingsService.getSettings().subscribe({
-      next: res => {
-        for (const entry of res.settings) {
+    forkJoin({
+      settings: this.settingsService.getSettings(),
+      defaults: this.settingsService.getDefaults(),
+    }).subscribe({
+      next: ({ settings, defaults }) => {
+        this.defaults.set(defaults);
+        for (const entry of settings.settings) {
           if (this.form.contains(entry.key)) {
             this.form.get(entry.key)?.setValue(entry.value ?? '');
           }
@@ -136,7 +160,14 @@ export class SettingsModalComponent implements OnInit {
 
   protected fieldType(field: SettingField): string {
     if (field.type === 'password') return this.isRevealed(field.key) ? 'text' : 'password';
-    return field.type === 'number' ? 'text' : 'text';
+    return 'text';
+  }
+
+  protected resetField(key: string): void {
+    const def = this.defaults()[key];
+    if (def !== undefined) {
+      this.form.get(key)?.setValue(def);
+    }
   }
 
   protected save(): void {

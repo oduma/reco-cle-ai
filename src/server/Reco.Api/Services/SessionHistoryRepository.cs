@@ -25,61 +25,6 @@ public class SessionHistoryRepository : ISessionHistoryRepository
         _connectionString = $"Data Source={dbPath}";
     }
 
-    public async Task EnsureCreatedAsync()
-    {
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync();
-
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            CREATE TABLE IF NOT EXISTS session_events (
-                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_type         TEXT    NOT NULL,
-                timestamp          TEXT    NOT NULL,
-                user_label         TEXT    NOT NULL DEFAULT 'me',
-                content            TEXT,
-                artist             TEXT,
-                album              TEXT,
-                title              TEXT,
-                duration_seconds   REAL,
-                is_active          INTEGER NOT NULL DEFAULT 1,
-                conversation_block INTEGER
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_se_is_active
-                ON session_events(is_active);
-
-            CREATE INDEX IF NOT EXISTS idx_se_conversation_block
-                ON session_events(conversation_block);
-
-            CREATE TABLE IF NOT EXISTS session_state (
-                key   TEXT PRIMARY KEY,
-                value TEXT
-            );
-
-            CREATE TABLE IF NOT EXISTS app_settings (
-                key        TEXT PRIMARY KEY,
-                value      TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS diary_entries (
-                date       TEXT PRIMARY KEY,
-                content    TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
-            """;
-        await cmd.ExecuteNonQueryAsync();
-
-        // Additive migration: mood column added in Phase 13
-        await using var migCmd = conn.CreateCommand();
-        migCmd.CommandText = """
-            ALTER TABLE session_events ADD COLUMN mood TEXT NULL;
-            """;
-        try { await migCmd.ExecuteNonQueryAsync(); }
-        catch (SqliteException) { /* column already exists — safe to ignore */ }
-    }
-
     public async Task<int> InsertEventAsync(
         string eventType,
         DateTimeOffset timestamp,

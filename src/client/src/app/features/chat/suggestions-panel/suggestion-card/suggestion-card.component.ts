@@ -27,6 +27,16 @@ export class SuggestionCardComponent {
     return `https://www.youtube.com/results?search_query=${q}`;
   });
 
+  lyricsUrl = computed(() => {
+    const s = this.suggestion();
+    const slug = (text: string) =>
+      text.toLowerCase()
+          .replace(/&/g, 'and')
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '');
+    return `https://genius.com/${slug(s.artist)}-${slug(s.title)}-lyrics`;
+  });
+
   constructor(
     private snackBar: MatSnackBar,
     private playlistService: PlaylistService,

@@ -1,4 +1,4 @@
-import { Component, computed, signal, ViewChild, ElementRef, AfterViewChecked, AfterViewInit, OnDestroy, OnInit, effect, HostListener } from '@angular/core';
+import { Component, computed, signal, ViewChild, ElementRef, AfterViewChecked, AfterViewInit, OnDestroy, OnInit, effect, HostListener, NgZone } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -96,6 +96,13 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
   protected activeReplyId = signal<number | null>(null);
   protected retryNotice = signal<string | null>(null);
 
+  // Show More / Show Less bubble truncation
+  protected truncatedBubbles = signal<Set<number>>(new Set());
+  protected expandedBubbles  = signal<Set<number>>(new Set());
+  private   bubbleNaturalHeights = new Map<number, number>();
+  private   resizeObserver?: ResizeObserver;
+  private   pendingMeasure = false;
+
   protected loadingPhrase = signal(LOADING_PHRASES[0]);
   protected tryLineHint = signal('');
 
@@ -140,6 +147,7 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     private recommendationService: RecommendationService,
     private sessionService: SessionService,
     private dialog: MatDialog,
+    private ngZone: NgZone,
   ) {
     effect(() => {
       if (this.loading()) {
@@ -167,11 +175,18 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
 
   ngAfterViewInit(): void {
     this.focusPromptInput();
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() =>
+        this.ngZone.run(() => this.recomputeTruncation()));
+      const el = this.messageListRef?.nativeElement;
+      if (el) this.resizeObserver.observe(el);
+    }
   }
 
   ngOnDestroy(): void {
     this.typewriterStop();
     if (this.fallbackTimer !== null) clearTimeout(this.fallbackTimer);
+    this.resizeObserver?.disconnect();
   }
 
   ngAfterViewChecked(): void {
@@ -182,6 +197,13 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     if (this.shouldFocusInput) {
       this.shouldFocusInput = false;
       setTimeout(() => this.promptInputRef?.nativeElement?.focus(), 0);
+    }
+    if (!this.pendingMeasure) {
+      this.pendingMeasure = true;
+      Promise.resolve().then(() => {
+        this.pendingMeasure = false;
+        this.measureNewBubbles();
+      });
     }
   }
 
@@ -247,6 +269,23 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
       disableClose: false,
       autoFocus: false,
       maxWidth: '96vw',
+      data: { provider: this.provider() },
+    });
+  }
+
+  protected isTruncated(index: number): boolean {
+    return this.truncatedBubbles().has(index) && !this.expandedBubbles().has(index);
+  }
+
+  protected showToggle(index: number): boolean {
+    return this.truncatedBubbles().has(index);
+  }
+
+  protected toggleExpand(index: number): void {
+    this.expandedBubbles.update(s => {
+      const next = new Set(s);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
     });
   }
 
@@ -453,6 +492,10 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
       const history = await firstValueFrom(this.sessionService.getHistory());
       if (history.turns.length === 0) return;
 
+      this.bubbleNaturalHeights.clear();
+      this.truncatedBubbles.set(new Set());
+      this.expandedBubbles.set(new Set());
+
       this.messages.set(history.turns.map(t => ({
         role: t.role,
         text: t.text,
@@ -514,6 +557,42 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
   // Only 502 (gateway busy / AI overloaded) is treated as transient and retried.
   private isRetryableError(err: unknown): boolean {
     return (err as { status?: number })?.status === 502;
+  }
+
+  private measureNewBubbles(): void {
+    const listEl = this.messageListRef?.nativeElement;
+    if (!listEl) return;
+    const threshold = window.innerHeight * 0.5;
+    let changed = false;
+
+    listEl.querySelectorAll<HTMLElement>('[data-msg-index]').forEach(el => {
+      const idx = parseInt(el.dataset['msgIndex'] ?? '-1', 10);
+      if (idx < 0 || this.bubbleNaturalHeights.has(idx)) return;
+      this.bubbleNaturalHeights.set(idx, el.scrollHeight);
+      changed = true;
+    });
+
+    if (changed) this.recomputeTruncation(threshold);
+  }
+
+  private recomputeTruncation(threshold = window.innerHeight * 0.5): void {
+    const msgs = this.messages();
+    const truncated = new Set<number>();
+    for (const [idx, h] of this.bubbleNaturalHeights) {
+      if (idx < msgs.length && msgs[idx].role === 'model' && h > threshold) {
+        truncated.add(idx);
+      }
+    }
+    const current = this.truncatedBubbles();
+    if (!ChatComponent.setsEqual(truncated, current)) {
+      this.truncatedBubbles.set(truncated);
+    }
+  }
+
+  private static setsEqual(a: Set<number>, b: Set<number>): boolean {
+    if (a.size !== b.size) return false;
+    for (const v of a) if (!b.has(v)) return false;
+    return true;
   }
 
   private scrollToBottom(): void {

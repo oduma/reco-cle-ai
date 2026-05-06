@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Reco.Api.Data;
 using Reco.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -5,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Settings infrastructure — registered first so all downstream services can use IAppSettingsService
 builder.Services.AddSingleton<IAppSettingsRepository, AppSettingsRepository>();
 builder.Services.AddSingleton<IAppSettingsService, AppSettingsService>();
+builder.Services.AddSingleton<IAiPromptService, AiPromptService>();
 
 builder.Services.AddSingleton<ISessionHistoryRepository, SessionHistoryRepository>();
 builder.Services.AddSingleton<ISessionHistoryService, SessionHistoryService>();
@@ -29,6 +32,12 @@ builder.Services.AddSingleton<ITrackEnrichmentService, TrackEnrichmentService>()
 builder.Services.AddScoped<IRecommendationOrchestrationService, RecommendationOrchestrationService>();
 builder.Services.AddScoped<IDiaryRepository, DiaryRepository>();
 builder.Services.AddScoped<IDiaryService, DiaryService>();
+builder.Services.AddDbContext<AppDbContext>(options =>
+{
+    var dbPath = builder.Configuration["REASONIC_DB_PATH"] ?? "reasonic.db";
+    options.UseSqlite($"Data Source={dbPath}");
+});
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
@@ -43,10 +52,20 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Ensure the Reasonic SQLite database and all tables exist (session events + app_settings)
+// Apply any pending EF Core migrations (creates schema on fresh installs; runs new migrations on upgrades).
+// For databases that existed before EF migrations were introduced, DatabaseBaseline stamps the
+// InitialSchema record so MigrateAsync() skips it and only runs the newer migrations.
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await DatabaseBaseline.StampIfNeededAsync(db);
+    await db.Database.MigrateAsync();
+}
+
+// Seed AI prompt defaults — INSERT OR IGNORE, so existing user edits are never overwritten.
 await app.Services
-    .GetRequiredService<ISessionHistoryRepository>()
-    .EnsureCreatedAsync();
+    .GetRequiredService<IAppSettingsRepository>()
+    .SeedDefaultsAsync(AiPromptDefaults.All);
 
 var geminiKey = app.Configuration["GEMINI_API_KEY"];
 if (string.IsNullOrWhiteSpace(geminiKey))

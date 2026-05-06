@@ -10,10 +10,12 @@ public class DiaryServiceTests
 {
     private static (IDiaryRepository repo, IGeminiGatewayService gemini, DiaryService service) Build()
     {
-        var repo   = Substitute.For<IDiaryRepository>();
-        var gemini = Substitute.For<IGeminiGatewayService>();
-        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<DiaryService>.Instance;
-        var svc    = new DiaryService(repo, gemini, logger);
+        var repo        = Substitute.For<IDiaryRepository>();
+        var gemini      = Substitute.For<IGeminiGatewayService>();
+        var ollama      = Substitute.For<IOllamaGatewayService>();
+        var appSettings = Substitute.For<IAppSettingsService>();
+        var logger      = Microsoft.Extensions.Logging.Abstractions.NullLogger<DiaryService>.Instance;
+        var svc         = new DiaryService(repo, gemini, ollama, appSettings, logger);
         return (repo, gemini, svc);
     }
 
@@ -46,7 +48,7 @@ public class DiaryServiceTests
 
         Assert.Equal("Cached prose.", result.Content);
         Assert.True(result.IsFromCache);
-        await gemini.DidNotReceive().GenerateDiaryEntryAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await gemini.DidNotReceive().GenerateDiaryEntryAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     // ── Force flag bypasses cache ──────────────────────────────────────────
@@ -61,7 +63,7 @@ public class DiaryServiceTests
         var dayData = new DiaryDayData(past,
             [new DiaryPromptEntry("Jazz please", "normal", DateTimeOffset.UtcNow.AddDays(-1))]);
         repo.GetDayDataAsync(past).Returns(dayData);
-        gemini.GenerateDiaryEntryAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns("Fresh prose.");
+        gemini.GenerateDiaryEntryAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns("Fresh prose.");
 
         var result = await svc.GetOrGenerateEntryAsync(past, force: true);
 
@@ -82,7 +84,7 @@ public class DiaryServiceTests
         var dayData = new DiaryDayData(past,
             [new DiaryPromptEntry("Blues mood", "noir", DateTimeOffset.UtcNow.AddDays(-2))]);
         repo.GetDayDataAsync(past).Returns(dayData);
-        gemini.GenerateDiaryEntryAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns("Blues diary entry.");
+        gemini.GenerateDiaryEntryAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns("Blues diary entry.");
 
         var result = await svc.GetOrGenerateEntryAsync(past, force: false);
 
@@ -156,7 +158,7 @@ public class DiaryServiceTests
         repo.GetDayDataAsync(past).Returns(dayData);
 
         string? capturedPrompt = null;
-        gemini.GenerateDiaryEntryAsync(Arg.Do<string>(p => capturedPrompt = p), Arg.Any<CancellationToken>())
+        gemini.GenerateDiaryEntryAsync(Arg.Do<string>(p => capturedPrompt = p), Arg.Any<string?>(), Arg.Any<CancellationToken>())
               .Returns("entry");
 
         await svc.GetOrGenerateEntryAsync(past, force: false);
@@ -181,7 +183,7 @@ public class DiaryServiceTests
         repo.GetDayDataAsync(past).Returns(dayData);
 
         string? capturedPrompt = null;
-        gemini.GenerateDiaryEntryAsync(Arg.Do<string>(p => capturedPrompt = p), Arg.Any<CancellationToken>())
+        gemini.GenerateDiaryEntryAsync(Arg.Do<string>(p => capturedPrompt = p), Arg.Any<string?>(), Arg.Any<CancellationToken>())
               .Returns("entry");
 
         await svc.GetOrGenerateEntryAsync(past, force: false);

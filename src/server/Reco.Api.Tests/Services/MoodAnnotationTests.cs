@@ -50,9 +50,18 @@ public class MoodAnnotationTests
         settings.GetIntAsync(Arg.Any<string>(), Arg.Any<int>())
                 .Returns(callInfo => Task.FromResult(callInfo.ArgAt<int>(1)));
 
+        var aiPrompts = Substitute.For<IAiPromptService>();
+        aiPrompts.GetMoodAnnotationAsync(Arg.Any<string?>())
+                 .Returns(callInfo =>
+                 {
+                     var m = callInfo.ArgAt<string?>(0);
+                     if (string.IsNullOrWhiteSpace(m)) return Task.FromResult<string?>(null);
+                     return Task.FromResult(AiPromptDefaults.GetMoodAnnotation(m));
+                 });
+
         var service = new RecommendationOrchestrationService(
             gemini, ollama, clementine, cache, lastFm,
-            sessionCtxBuilder, sessionHistory, settings,
+            sessionCtxBuilder, sessionHistory, settings, aiPrompts,
             NullLogger<RecommendationOrchestrationService>.Instance);
 
         return (service, () => capturedPrompt);

@@ -36,11 +36,16 @@ describe('SettingsModalComponent', () => {
 
   afterEach(() => http.verify());
 
+  function flushInit(settingsOverride?: object): void {
+    http.expectOne('/api/settings').flush(settingsOverride ?? { settings: [] });
+    http.expectOne('/api/settings/defaults').flush({});
+  }
+
   it('shows spinner while loading', () => {
     fixture.detectChanges();
     const spinner = fixture.nativeElement.querySelector('mat-spinner');
     expect(spinner).toBeTruthy();
-    http.expectOne('/api/settings').flush({ settings: [] });
+    flushInit();
   });
 
   it('pre-populates form fields from API response', async () => {
@@ -48,6 +53,7 @@ describe('SettingsModalComponent', () => {
     http.expectOne('/api/settings').flush({
       settings: [{ key: 'GEMINI_API_KEY', value: 'abc123' }],
     });
+    http.expectOne('/api/settings/defaults').flush({});
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -57,7 +63,7 @@ describe('SettingsModalComponent', () => {
 
   it('hides spinner after load', async () => {
     fixture.detectChanges();
-    http.expectOne('/api/settings').flush({ settings: [] });
+    flushInit();
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -67,7 +73,7 @@ describe('SettingsModalComponent', () => {
 
   it('cancel() closes dialog with false', async () => {
     fixture.detectChanges();
-    http.expectOne('/api/settings').flush({ settings: [] });
+    flushInit();
     await fixture.whenStable();
 
     (component as any).cancel();
@@ -76,13 +82,13 @@ describe('SettingsModalComponent', () => {
 
   it('save() sends PUT with form values and closes with true', async () => {
     fixture.detectChanges();
-    http.expectOne('/api/settings').flush({ settings: [] });
+    flushInit();
     await fixture.whenStable();
 
     (component as any).form.get('GEMINI_API_KEY')?.setValue('newkey');
     (component as any).save();
 
-    const req = http.expectOne('/api/settings');
+    const req = http.expectOne(r => r.method === 'PUT' && r.url === '/api/settings');
     expect(req.request.method).toBe('PUT');
     expect(req.request.body.settings['GEMINI_API_KEY']).toBe('newkey');
     req.flush(null, { status: 204, statusText: 'No Content' });
@@ -96,23 +102,25 @@ describe('SettingsModalComponent', () => {
     http.expectOne('/api/settings').flush({
       settings: [{ key: 'GEMINI_API_KEY', value: 'oldkey' }],
     });
+    http.expectOne('/api/settings/defaults').flush({});
     await fixture.whenStable();
 
     (component as any).form.get('GEMINI_API_KEY')?.setValue('');
     (component as any).save();
 
-    const req = http.expectOne('/api/settings');
+    const req = http.expectOne(r => r.method === 'PUT' && r.url === '/api/settings');
     expect(req.request.body.settings['GEMINI_API_KEY']).toBeNull();
     req.flush(null, { status: 204, statusText: 'No Content' });
   });
 
   it('shows error message when save fails', async () => {
     fixture.detectChanges();
-    http.expectOne('/api/settings').flush({ settings: [] });
+    flushInit();
     await fixture.whenStable();
 
     (component as any).save();
-    http.expectOne('/api/settings').flush(null, { status: 500, statusText: 'Error' });
+    http.expectOne(r => r.method === 'PUT' && r.url === '/api/settings')
+        .flush(null, { status: 500, statusText: 'Error' });
     await fixture.whenStable();
     fixture.detectChanges();
 

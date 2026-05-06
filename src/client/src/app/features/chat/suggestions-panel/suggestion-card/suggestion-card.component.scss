@@ -137,6 +137,7 @@
   align-items: center;
   padding: 2px 6px 6px;
   min-height: 32px;
+  gap: 4px;
 }
 
 .footer-action {
@@ -179,4 +180,23 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+}
+
+.footer-action--lyrics {
+  margin-left: auto;
+  color: var(--reco-accent);
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.lyrics-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
 }

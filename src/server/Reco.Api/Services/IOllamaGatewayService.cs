@@ -3,6 +3,10 @@ using Reco.Api.Models;
 
 namespace Reco.Api.Services;
 
+/// <summary>
+/// Marker interface for the Ollama LLM gateway — used for DI disambiguation.
+/// Adds a model-overloaded recommendation method for selecting whisper vs. shout at call-time.
+/// </summary>
 public interface IOllamaGatewayService : ILLMGatewayService
 {
     Task<MusicRecommendationResult> GetMusicRecommendationAsync(

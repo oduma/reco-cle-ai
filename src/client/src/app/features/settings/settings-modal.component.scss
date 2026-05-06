@@ -15,8 +15,8 @@
 
 .settings-content {
   min-width: 520px;
-  max-width: 600px;
-  max-height: 70vh;
+  max-width: 680px;
+  max-height: 72vh;
   padding: 8px 24px;
 }
 
@@ -56,6 +56,36 @@
 
 .settings-field {
   width: 100%;
+}
+
+.settings-textarea {
+  font-family: var(--reco-font-bubble, monospace);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 96px;
+}
+
+.field-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+
+  &--resettable .settings-field {
+    flex: 1;
+  }
+}
+
+.reset-field-btn {
+  flex-shrink: 0;
+  margin-top: 6px;
+  color: var(--reco-text-muted);
+  --mdc-icon-button-state-layer-size: 28px;
+  --mdc-icon-button-icon-size: 18px;
+
+  &:hover {
+    color: var(--reco-primary);
+  }
 }
 
 .settings-actions {

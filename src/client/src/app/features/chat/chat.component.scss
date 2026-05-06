@@ -406,8 +406,21 @@
   &--model { justify-content: flex-start; }
 }
 
-.message-bubble {
+// Wrapper for model bubble + Show More/Less toggle — constrains max-width
+.model-msg-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   max-width: 78%;
+
+  .message-bubble {
+    max-width: 100%;
+  }
+}
+
+.message-bubble {
+  max-width: 78%; // for user bubbles; model bubbles use .model-msg-group max-width
   padding: 10px 14px;
   border-radius: 18px;
   line-height: 1.7;
@@ -445,6 +458,23 @@
     padding-right: 36px;
   }
 
+  &--clamped {
+    max-height: 50vh;
+    overflow: hidden;
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      background: linear-gradient(to bottom, transparent, var(--reco-surface-2));
+      pointer-events: none;
+    }
+  }
+
   &--loading {
     display: flex;
     flex-direction: column;
@@ -457,6 +487,24 @@
     background-color: var(--reco-surface-1);
     border: 1px solid var(--reco-border);
     border-bottom-left-radius: 4px;
+  }
+}
+
+.show-more-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--reco-font);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--reco-primary);
+  padding: 0 2px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  line-height: 1.4;
+
+  &:hover {
+    color: var(--reco-accent);
   }
 }
 

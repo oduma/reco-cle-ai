@@ -5,50 +5,36 @@ using Reco.Api.Models;
 
 namespace Reco.Api.Services;
 
-public class OllamaGatewayService : IOllamaGatewayService
+public class OllamaGatewayService : LlmGatewayBase, IOllamaGatewayService
 {
     private readonly HttpClient _httpClient;
     private readonly IAppSettingsService _settings;
-    private readonly ILogger<OllamaGatewayService> _logger;
+    private readonly IAiPromptService _prompts;
 
     public OllamaGatewayService(
         HttpClient httpClient,
         IAppSettingsService settings,
+        IAiPromptService prompts,
         ILogger<OllamaGatewayService> logger)
+        : base(logger)
     {
         _httpClient = httpClient;
-        _settings = settings;
-        _logger = logger;
+        _settings   = settings;
+        _prompts    = prompts;
     }
 
-    private static string BuildSystemPrompt(int minTracks, int maxTracks) =>
-        "You are an expert music discovery assistant. For each user request you must respond with ONLY a " +
-        "JSON object — no other text, no markdown, no code blocks.\n\n" +
-        "The JSON must have exactly two fields:\n" +
-        "- \"narrative\": a warm, conversational paragraph recommending music, written like a knowledgeable curator. " +
-        "Mention specific tracks and explain why you are recommending them. " +
-        "Wrap every track title and artist name in **double asterisks** — for example: **Kind of Blue** by **Miles Davis**.\n" +
-        "- \"tracks\": an array of the specific tracks you mention in your narrative. Each track must have " +
-        "\"title\", \"artist\", and optionally \"album\".\n\n" +
-        $"Return between {minTracks} and {maxTracks} tracks.\n\n" +
-        "Example response:\n" +
-        "{\n" +
-        "  \"narrative\": \"Here are some atmospheric picks for you...\",\n" +
-        "  \"tracks\": [\n" +
-        "    {\"title\": \"Song Name\", \"artist\": \"Artist Name\", \"album\": \"Album Name\"},\n" +
-        "    {\"title\": \"Another Song\", \"artist\": \"Another Artist\"}\n" +
-        "  ]\n" +
-        "}" +
-        AiSystemInstructions.SessionMemoryInstruction;
+    // ── GetMusicRecommendationAsync (default model) ───────────────────────────
 
-    public async Task<MusicRecommendationResult> GetMusicRecommendationAsync(
+    public override async Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
         IReadOnlyList<ConversationTurn> history,
         CancellationToken cancellationToken = default)
     {
-        var whisperModel = await _settings.GetStringAsync("OLLAMA_WHISPER_MODEL", "llama3.1:8b");
-        return await GetMusicRecommendationAsync(prompt, history, whisperModel, cancellationToken);
+        var model = await _settings.GetStringAsync("OLLAMA_WHISPER_MODEL", "llama3.1:8b");
+        return await GetMusicRecommendationAsync(prompt, history, model, cancellationToken);
     }
+
+    // ── GetMusicRecommendationAsync (explicit model) ──────────────────────────
 
     public async Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
@@ -56,89 +42,81 @@ public class OllamaGatewayService : IOllamaGatewayService
         string model,
         CancellationToken cancellationToken = default)
     {
-        var baseUrl   = await _settings.GetStringAsync("OLLAMA_BASE_URL",          "http://localhost:11434");
+        var baseUrl   = await _settings.GetStringAsync("OLLAMA_BASE_URL", "http://localhost:11434");
         var minTracks = await _settings.GetIntAsync("RECOMMENDATION_MIN_TRACKS", 10);
         var maxTracks = await _settings.GetIntAsync("RECOMMENDATION_MAX_TRACKS", 20);
+        var sysInst   = await _prompts.BuildRecommendationPromptAsync(
+            AiPromptDefaults.RecommendationInstructionKey, minTracks, maxTracks);
 
-        var url = $"{baseUrl}/v1/chat/completions";
+        var messages    = BuildMessages(sysInst, history, prompt);
+        var requestBody = new { model, messages, stream = false, response_format = new { type = "json_object" } };
+        var url         = $"{baseUrl}/v1/chat/completions";
 
-        var messages = new List<object>
-        {
-            new { role = "system", content = BuildSystemPrompt(minTracks, maxTracks) }
-        };
-
-        foreach (var turn in history)
-        {
-            var role = turn.Role == "model" ? "assistant" : turn.Role;
-            messages.Add(new { role, content = turn.Text });
-        }
-
-        messages.Add(new { role = "user", content = prompt });
-
-        var requestBody = new
-        {
-            model,
-            messages,
-            stream = false,
-            response_format = new { type = "json_object" }
-        };
-
-        _logger.LogInformation(
-            "[Ollama/Reco] → POST {Url} | model: {Model} | history turns: {HistoryCount} | prompt: {Length} chars",
+        Logger.LogInformation("[Ollama/Reco] → POST {Url} | model: {Model} | history: {H} turns | prompt: {L} chars",
             url, model, history.Count, prompt.Length);
 
-        var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
-
-        _logger.LogInformation("[Ollama/Reco] ← {StatusCode} ({Status})",
-            (int)response.StatusCode, response.StatusCode);
-
-        response.EnsureSuccessStatusCode();
-
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
-
-        var rawContent = json
-            .GetProperty("choices")[0]
-            .GetProperty("message")
-            .GetProperty("content")
-            .GetString() ?? "{}";
-
-        _logger.LogInformation("[Ollama/Reco] Response JSON length: {Length} chars", rawContent.Length);
-
-        return ParseMusicRecommendation(rawContent);
+        return await ExecuteWithRetryAsync(
+            ct => _httpClient.PostAsJsonAsync(url, requestBody, ct),
+            async (response, ct) =>
+            {
+                var json       = await ReadJsonAsync(response, ct);
+                var rawContent = json.GetProperty("choices")[0]
+                                     .GetProperty("message")
+                                     .GetProperty("content").GetString() ?? "{}";
+                Logger.LogInformation("[Ollama/Reco] Response JSON: {L} chars", rawContent.Length);
+                return ParseMusicRecommendation(rawContent);
+            },
+            "Ollama/Reco",
+            cancellationToken);
     }
 
-    private MusicRecommendationResult ParseMusicRecommendation(string rawJson)
+    // ── GenerateDiaryEntryAsync ───────────────────────────────────────────────
+
+    public override async Task<string> GenerateDiaryEntryAsync(
+        string userPrompt,
+        string? model = null,
+        CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var root = JsonDocument.Parse(rawJson).RootElement;
+        var baseUrl  = await _settings.GetStringAsync("OLLAMA_BASE_URL", "http://localhost:11434");
+        var resolved = model ?? await _settings.GetStringAsync("OLLAMA_WHISPER_MODEL", "llama3.1:8b");
+        var sysInst  = await _prompts.GetPromptAsync(AiPromptDefaults.DiarySystemInstructionKey);
 
-            var narrative = root.TryGetProperty("narrative", out var n)
-                ? n.GetString() ?? string.Empty
-                : string.Empty;
+        var messages    = BuildMessages(sysInst, [], userPrompt);
+        var requestBody = new { model = resolved, messages, stream = false };
+        var url         = $"{baseUrl}/v1/chat/completions";
 
-            var tracks = new List<TrackSuggestion>();
-            if (root.TryGetProperty("tracks", out var tracksEl) &&
-                tracksEl.ValueKind == JsonValueKind.Array)
+        Logger.LogInformation("[Ollama/Diary] → POST {Url} | model: {Model} | prompt: {L} chars",
+            url, resolved, userPrompt.Length);
+
+        return await ExecuteWithRetryAsync(
+            ct => _httpClient.PostAsJsonAsync(url, requestBody, ct),
+            async (response, ct) =>
             {
-                foreach (var t in tracksEl.EnumerateArray())
-                {
-                    var title  = t.TryGetProperty("title",  out var ti) ? ti.GetString() ?? "" : "";
-                    var artist = t.TryGetProperty("artist", out var ar) ? ar.GetString() ?? "" : "";
-                    var album  = t.TryGetProperty("album",  out var al) ? al.GetString() : null;
+                var json = await ReadJsonAsync(response, ct);
+                var text = json.GetProperty("choices")[0]
+                               .GetProperty("message")
+                               .GetProperty("content").GetString() ?? string.Empty;
+                Logger.LogInformation("[Ollama/Diary] Response: {L} chars", text.Length);
+                return text;
+            },
+            "Ollama/Diary",
+            cancellationToken);
+    }
 
-                    if (title.Length > 0 && artist.Length > 0)
-                        tracks.Add(new TrackSuggestion(title, artist, album));
-                }
-            }
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-            _logger.LogInformation("[Ollama/Reco] Parsed {Count} tracks from response", tracks.Count);
-            return new MusicRecommendationResult(narrative, tracks);
-        }
-        catch (Exception ex)
+    private static List<object> BuildMessages(
+        string systemInstruction,
+        IReadOnlyList<ConversationTurn> history,
+        string userPrompt)
+    {
+        var messages = new List<object>
         {
-            _logger.LogError(ex, "[Ollama/Reco] Failed to parse recommendation JSON: {Raw}", rawJson);
-            return new MusicRecommendationResult(string.Empty, []);
-        }
+            new { role = "system", content = systemInstruction }
+        };
+        foreach (var turn in history)
+            messages.Add(new { role = turn.Role == "model" ? "assistant" : turn.Role, content = turn.Text });
+        messages.Add(new { role = "user", content = userPrompt });
+        return messages;
     }
 }
