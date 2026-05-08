@@ -63,13 +63,16 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
 
         var sessionContext = await _sessionContextBuilder.BuildAsync(cancellationToken);
 
+        var recentHistory    = await _sessionHistory.GetRecentRecommendationHistoryAsync(100);
+        var noRepeatBlock    = BuildNoRepeatBlock(recentHistory);
+
         var annotation = await _aiPrompts.GetMoodAnnotationAsync(mood);
         var moodLine   = annotation is not null ? $"{annotation}\n\n" : string.Empty;
         var envLine    = BuildEnvironmentalContext(locationContext, weatherContext);
 
         var enrichedPrompt = sessionContext.Preamble is not null
-            ? $"{sessionContext.Preamble}\n\n{envLine}{moodLine}My question: {prompt}"
-            : $"{envLine}{moodLine}{prompt}";
+            ? $"{sessionContext.Preamble}\n\n{envLine}{noRepeatBlock}{moodLine}My question: {prompt}"
+            : $"{envLine}{noRepeatBlock}{moodLine}{prompt}";
 
         _logger.LogInformation(
             "[Recommendations] Requesting | provider: {Provider} | history turns: {HistoryCount} | preamble: {HasPreamble} | prompt: {Length} chars",
@@ -161,6 +164,18 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         return tracks
             .Select((t, i) => t with { AlbumArtUrl = artUrls[i] })
             .ToList();
+    }
+
+    private static string BuildNoRepeatBlock(IReadOnlyList<RawTrack> history)
+    {
+        if (history.Count == 0) return string.Empty;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("You have already recommended the following tracks recently — do not suggest them again:");
+        foreach (var t in history)
+            sb.AppendLine($"- {t.Artist} — {t.Title}");
+        sb.AppendLine();
+        return sb.ToString();
     }
 
     private static string BuildEnvironmentalContext(string? location, string? weather)

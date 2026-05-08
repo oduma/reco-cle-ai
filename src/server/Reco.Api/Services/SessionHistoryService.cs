@@ -36,8 +36,16 @@ public class SessionHistoryService : ISessionHistoryService
         return id;
     }
 
-    public Task LogTrackSuggestionsAsync(IReadOnlyList<RawTrack> rawTracks, int aiReplyId) =>
-        _repo.InsertTrackSuggestionsAsync(rawTracks, aiReplyId);
+    public async Task LogTrackSuggestionsAsync(IReadOnlyList<RawTrack> rawTracks, int aiReplyId)
+    {
+        await _repo.InsertTrackSuggestionsAsync(rawTracks, aiReplyId);
+
+        if (rawTracks.Count > 0)
+        {
+            var maxRows = await _settings.GetIntAsync("RECOMMENDATION_HISTORY_MAX_ROWS", 10_000);
+            await _repo.InsertRecommendationHistoryAsync(rawTracks, maxRows);
+        }
+    }
 
     public Task LogTrackEventAsync(
         string eventType,
@@ -78,6 +86,9 @@ public class SessionHistoryService : ISessionHistoryService
         await _repo.SoftDeleteAllActiveAsync();
         await _repo.SetActiveReplyIdAsync(null);
     }
+
+    public Task<IReadOnlyList<RawTrack>> GetRecentRecommendationHistoryAsync(int limit) =>
+        _repo.GetRecentRecommendationHistoryAsync(limit);
 
     // ── Private ───────────────────────────────────────────────────────────────
 

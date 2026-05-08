@@ -61,9 +61,10 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   {
     title: 'Recommendations',
     fields: [
-      { key: 'RECOMMENDATION_MIN_TRACKS',               label: 'Min tracks',            type: 'number', placeholder: '10' },
-      { key: 'RECOMMENDATION_MAX_TRACKS',               label: 'Max tracks',            type: 'number', placeholder: '20' },
-      { key: 'RECOMMENDATION_SUGGESTION_CACHE_MINUTES', label: 'Suggestion cache (min)', type: 'number', placeholder: '60' },
+      { key: 'RECOMMENDATION_MIN_TRACKS',               label: 'Min tracks',              type: 'number', placeholder: '10' },
+      { key: 'RECOMMENDATION_MAX_TRACKS',               label: 'Max tracks',              type: 'number', placeholder: '20' },
+      { key: 'RECOMMENDATION_SUGGESTION_CACHE_MINUTES', label: 'Suggestion cache (min)',  type: 'number', placeholder: '60' },
+      { key: 'RECOMMENDATION_HISTORY_MAX_ROWS',         label: 'History cap (rows)',      type: 'number', placeholder: '10000' },
     ],
   },
   {

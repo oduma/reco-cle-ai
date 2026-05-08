@@ -46,4 +46,10 @@ public interface ISessionHistoryService
 
     /// <summary>Soft-deletes every active session event and clears the active reply state.</summary>
     Task BustMemoryAsync();
+
+    /// <summary>
+    /// Returns up to <paramref name="limit"/> recently recommended tracks (newest first)
+    /// from the persistent recommendation_history table.
+    /// </summary>
+    Task<IReadOnlyList<RawTrack>> GetRecentRecommendationHistoryAsync(int limit);
 }

@@ -295,6 +295,77 @@ public class SessionHistoryRepository : ISessionHistoryRepository
         await cmd.ExecuteNonQueryAsync();
     }
 
+    public async Task InsertRecommendationHistoryAsync(IReadOnlyList<RawTrack> tracks, int maxRows)
+    {
+        if (tracks.Count == 0) return;
+
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync();
+
+        var now = DateTimeOffset.UtcNow.UtcDateTime.ToString("O");
+
+        await using (var tx = conn.BeginTransaction())
+        {
+            foreach (var track in tracks)
+            {
+                await using var insert = conn.CreateCommand();
+                insert.Transaction = tx;
+                insert.CommandText = """
+                    INSERT INTO recommendation_history (artist, title, album, recorded_at)
+                    VALUES ($artist, $title, $album, $ts);
+                    """;
+                insert.Parameters.AddWithValue("$artist", (object?)track.Artist ?? DBNull.Value);
+                insert.Parameters.AddWithValue("$title",  (object?)track.Title  ?? DBNull.Value);
+                insert.Parameters.AddWithValue("$album",  (object?)track.Album  ?? DBNull.Value);
+                insert.Parameters.AddWithValue("$ts",     now);
+                await insert.ExecuteNonQueryAsync();
+            }
+
+            // Trim to cap: delete oldest rows beyond maxRows
+            await using var trim = conn.CreateCommand();
+            trim.Transaction = tx;
+            trim.CommandText = """
+                DELETE FROM recommendation_history
+                WHERE id NOT IN (
+                    SELECT id FROM recommendation_history
+                    ORDER BY id DESC
+                    LIMIT $cap
+                );
+                """;
+            trim.Parameters.AddWithValue("$cap", maxRows);
+            await trim.ExecuteNonQueryAsync();
+
+            await tx.CommitAsync();
+        }
+    }
+
+    public async Task<IReadOnlyList<RawTrack>> GetRecentRecommendationHistoryAsync(int limit)
+    {
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync();
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT artist, title, album
+            FROM   recommendation_history
+            ORDER  BY id DESC
+            LIMIT  $limit;
+            """;
+        cmd.Parameters.AddWithValue("$limit", limit);
+
+        var tracks = new List<RawTrack>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            tracks.Add(new RawTrack(
+                Title:  reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                Artist: reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+                Album:  reader.IsDBNull(2) ? null         : reader.GetString(2)
+            ));
+        }
+        return tracks;
+    }
+
     // ── Mapping ───────────────────────────────────────────────────────────────
 
     private static SessionEvent ReadEvent(SqliteDataReader r) => new(

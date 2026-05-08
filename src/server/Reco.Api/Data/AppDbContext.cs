@@ -5,10 +5,11 @@ namespace Reco.Api.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<SessionEventEntity> SessionEvents  { get; set; } = null!;
-    public DbSet<AppSettingEntity>   AppSettings    { get; set; } = null!;
-    public DbSet<SessionStateEntity> SessionState   { get; set; } = null!;
-    public DbSet<DiaryEntryEntity>   DiaryEntries   { get; set; } = null!;
+    public DbSet<SessionEventEntity>          SessionEvents         { get; set; } = null!;
+    public DbSet<AppSettingEntity>            AppSettings           { get; set; } = null!;
+    public DbSet<SessionStateEntity>          SessionState          { get; set; } = null!;
+    public DbSet<DiaryEntryEntity>            DiaryEntries          { get; set; } = null!;
+    public DbSet<RecommendationHistoryEntity> RecommendationHistory { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,6 +57,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Date).HasColumnName("date");
             e.Property(x => x.Content).HasColumnName("content").IsRequired();
             e.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+        });
+
+        modelBuilder.Entity<RecommendationHistoryEntity>(e =>
+        {
+            e.ToTable("recommendation_history");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.Artist).HasColumnName("artist").IsRequired();
+            e.Property(x => x.Title).HasColumnName("title").IsRequired();
+            e.Property(x => x.Album).HasColumnName("album");
+            e.Property(x => x.RecordedAt).HasColumnName("recorded_at").IsRequired();
+            e.HasIndex(x => x.RecordedAt).HasDatabaseName("idx_rh_recorded_at");
         });
     }
 }

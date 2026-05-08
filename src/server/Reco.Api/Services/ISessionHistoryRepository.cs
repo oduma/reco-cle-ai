@@ -67,4 +67,13 @@ public interface ISessionHistoryRepository
 
     /// <summary>Soft-deletes every active event (memory bust).</summary>
     Task SoftDeleteAllActiveAsync();
+
+    /// <summary>
+    /// Inserts each track in <paramref name="tracks"/> into recommendation_history and
+    /// then trims the table to at most <paramref name="maxRows"/> rows (oldest deleted first).
+    /// </summary>
+    Task InsertRecommendationHistoryAsync(IReadOnlyList<RawTrack> tracks, int maxRows);
+
+    /// <summary>Returns the most-recently recorded tracks, newest first, capped at <paramref name="limit"/>.</summary>
+    Task<IReadOnlyList<RawTrack>> GetRecentRecommendationHistoryAsync(int limit);
 }

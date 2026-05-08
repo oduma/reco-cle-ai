@@ -27,6 +27,7 @@ The app is being built in phases:
 14. **Phase 14:** Musical Diary — calendar icon in header opens a Musical Diary modal; inline MatCalendar highlights past days with activity (cyan) and today (charcoal); clicking a past active day generates a first-person AI diary entry via Gemini covering mood summary, listening critique, most interesting request, and conclusion; entries cached in `diary_entries` table in `reasonic.db`; forced regeneration supported; today never generates a diary
 15. **Phase 15:** Safe DB upgrades — EF Core migrations introduced (hybrid mode: repositories keep raw ADO.NET, EF only tracks migration history); `__EFMigrationsHistory` table; `DatabaseBaseline` stamps existing databases at `InitialSchema` so only new migrations run; `CleanupRenamedPromptKeys` migration renames `GEMINI_RECOMMENDATION_INSTRUCTION` → `RECOMMENDATION_INSTRUCTION` and removes dead keys; `dotnet ef migrations add` workflow documented in linux deployment guide
 16. **Phase 16:** Environmental context — voice toggle buttons moved from header to Settings modal under "Active Voice" section with model names as labels (reads configured `GEMINI_MODEL`, `OLLAMA_WHISPER_MODEL`, `OLLAMA_SHOUT_MODEL`); header now shows current city/country from IP geolocation (`geo.kamero.ai`); new "Environmental Context" settings section with "Use User Location" and "Use Current Weather" checkboxes (persisted in `reasonic.db`); when enabled, location and/or WMO weather interpretation is appended to each recommendation prompt (not diary); weather uses Open-Meteo free API; geo/weather resolved browser-side for accurate user IP
+17. **Phase 17:** Recommendation history no-repeat — persistent `recommendation_history` table (never soft-deleted, survives memory busts); every batch of AI-suggested tracks is written to this table after a response; the last 100 recently recommended tracks are injected into every recommendation prompt as a "do not suggest again" block; table capped at `RECOMMENDATION_HISTORY_MAX_ROWS` rows (default 10,000, oldest deleted first, configurable via Settings modal under Recommendations)
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:
@@ -123,6 +124,7 @@ These are bootstrap / fallback values. From Phase 11 onward, all except `REASONI
 - `RECOMMENDATION_MIN_TRACKS` — minimum tracks to request from AI (default: `10`)
 - `RECOMMENDATION_MAX_TRACKS` — maximum tracks to request from AI (default: `20`)
 - `RECOMMENDATION_SUGGESTION_CACHE_MINUTES` — suggestion cache lifetime in minutes (default: `60`)
+- `RECOMMENDATION_HISTORY_MAX_ROWS` — maximum rows kept in `recommendation_history` table before oldest are deleted (default: `10000`)
 - `SESSION_MEMORY_SIZE` — max AI replies kept before FIFO eviction (default: `25`)
 - `SESSION_DEFAULT_TRACK_DURATION_SECONDS` — assumed duration for tracks with no Clementine data (default: `210` = 3.5 min)
 - `USE_USER_LOCATION` — UI-only setting (stored in `app_settings`); when `"true"`, the user's city/country is appended to each recommendation prompt (default: `"false"`)
