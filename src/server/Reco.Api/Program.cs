@@ -52,9 +52,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// ── Schema ────────────────────────────────────────────────────────────────────
 // Apply any pending EF Core migrations (creates schema on fresh installs; runs new migrations on upgrades).
-// For databases that existed before EF migrations were introduced, DatabaseBaseline stamps the
-// InitialSchema record so MigrateAsync() skips it and only runs the newer migrations.
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -62,37 +61,66 @@ await using (var scope = app.Services.CreateAsyncScope())
     await db.Database.MigrateAsync();
 }
 
-// Seed AI prompt defaults — INSERT OR IGNORE, so existing user edits are never overwritten.
-await app.Services
-    .GetRequiredService<IAppSettingsRepository>()
-    .SeedDefaultsAsync(AiPromptDefaults.All);
+// ── Settings seeding ─────────────────────────────────────────────────────────
+// Build the combined defaults dict: app-setting defaults + AI prompt defaults.
+var allDefaults = new Dictionary<string, string>(
+    AppSettingDefaults.All,
+    StringComparer.OrdinalIgnoreCase);
+foreach (var (k, v) in AiPromptDefaults.All)
+    allDefaults[k] = v;
 
-var geminiKey = app.Configuration["GEMINI_API_KEY"];
+var repo = app.Services.GetRequiredService<IAppSettingsRepository>();
+
+// 1. Write canonical defaults to app_setting_defaults (always UPSERT — updates on version upgrades).
+await repo.WriteDefaultsAsync(allDefaults);
+
+// 2. Seed app_settings (INSERT OR IGNORE) so every non-secret setting has a DB row.
+//    Existing user overrides are never touched.
+await repo.SeedDefaultsAsync(allDefaults);
+
+// 3. One-time migration: seed API keys and machine-specific paths from env vars into app_settings.
+//    Once present in the DB, env vars for these are no longer required.
+var secretsToSeed = new[] { "GEMINI_API_KEY", "LASTFM_API_KEY", "CLEMENTINE_DB_PATH" };
+foreach (var key in secretsToSeed)
+{
+    var envValue = app.Configuration[key];
+    if (!string.IsNullOrWhiteSpace(envValue))
+        await repo.SeedDefaultsAsync(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [key] = envValue });
+}
+
+// ── Startup checks ────────────────────────────────────────────────────────────
+// Check the effective runtime value (DB + env var fallback) so the warning is accurate
+// even when the key was just seeded from an env var above.
+var settings = app.Services.GetRequiredService<IAppSettingsService>();
+
+var geminiKey = await settings.GetStringAsync("GEMINI_API_KEY", "");
 if (string.IsNullOrWhiteSpace(geminiKey))
 {
     app.Logger.LogWarning(
-        "GEMINI_API_KEY is not set. Set it as an environment variable or via the settings panel. " +
+        "GEMINI_API_KEY is not set. Configure it via the in-app settings panel " +
+        "or set GEMINI_API_KEY in .env.local for the first run. " +
         "All chat requests will fail until it is configured.");
 }
 else
 {
-    app.Logger.LogInformation("GEMINI_API_KEY loaded (starts with: {Prefix}…)", geminiKey[..4]);
+    app.Logger.LogInformation("GEMINI_API_KEY configured (starts with: {Prefix}…)", geminiKey[..4]);
 }
 
-var clementineDbPath = app.Configuration["CLEMENTINE_DB_PATH"];
+var clementineDbPath = await settings.GetStringAsync("CLEMENTINE_DB_PATH", "");
 if (string.IsNullOrWhiteSpace(clementineDbPath) || !File.Exists(clementineDbPath))
 {
     app.Logger.LogWarning(
         "Clementine database copy not found at {Path}. " +
-        "Local library filtering will be unavailable until the file is placed at the configured path. " +
-        "Set CLEMENTINE_DB_PATH via environment variable or the settings panel.",
-        clementineDbPath ?? "(not set)");
+        "Local library filtering will be unavailable until configured via the settings panel.",
+        string.IsNullOrWhiteSpace(clementineDbPath) ? "(not set)" : clementineDbPath);
 }
 else
 {
     app.Logger.LogInformation("Clementine database copy found at {Path}", clementineDbPath);
 }
 
+// ── Middleware ────────────────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

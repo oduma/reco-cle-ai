@@ -90,4 +90,54 @@ public class AppSettingsRepository : IAppSettingsRepository
             await cmd.ExecuteNonQueryAsync();
         }
     }
+
+    public async Task WriteDefaultsAsync(IReadOnlyDictionary<string, string> defaults)
+    {
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync();
+
+        var now = DateTimeOffset.UtcNow.ToString("O");
+        foreach (var (key, value) in defaults)
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO app_setting_defaults (key, value, updated_at)
+                VALUES ($key, $value, $ts)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at;
+                """;
+            cmd.Parameters.AddWithValue("$key",   key);
+            cmd.Parameters.AddWithValue("$value", value);
+            cmd.Parameters.AddWithValue("$ts",    now);
+            await cmd.ExecuteNonQueryAsync();
+        }
+    }
+
+    public async Task<IReadOnlyDictionary<string, string>> GetAllDefaultsAsync()
+    {
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync();
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT key, value FROM app_setting_defaults;";
+
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            result[reader.GetString(0)] = reader.GetString(1);
+
+        return result;
+    }
+
+    public async Task<string?> GetDefaultAsync(string key)
+    {
+        await using var conn = new SqliteConnection(_connectionString);
+        await conn.OpenAsync();
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT value FROM app_setting_defaults WHERE key = $key;";
+        cmd.Parameters.AddWithValue("$key", key);
+
+        var result = await cmd.ExecuteScalarAsync();
+        return result is null or DBNull ? null : (string)result;
+    }
 }

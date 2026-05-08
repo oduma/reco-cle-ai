@@ -88,19 +88,26 @@ Create a file called `.env.local` in that folder. This file holds your secrets a
 nano .env.local
 ```
 
-At a minimum, set both required API keys:
+You only need to set the two API keys — everything else is automatically configured by
+the app on first run:
 
 ```
 GEMINI_API_KEY=your-gemini-api-key-here
 LASTFM_API_KEY=your-lastfm-api-key-here
 ```
 
-If you also want Clementine integration or other overrides, add them on separate lines:
+If you want Clementine integration, also add the path to your Clementine database copy:
 
 ```
 GEMINI_API_KEY=your-gemini-api-key-here
 LASTFM_API_KEY=your-lastfm-api-key-here
 CLEMENTINE_DB_PATH=/home/youruser/clementine.db
+```
+
+If you want to store `reasonic.db` in a non-default location, add:
+
+```
+REASONIC_DB_PATH=/home/youruser/data/reasonic.db
 ```
 
 Save and close (`Ctrl+O`, `Enter`, `Ctrl+X` in nano).
@@ -115,91 +122,27 @@ chmod 600 .env.local
 > app. The variables are set only for that process — they do not pollute your shell
 > session or system environment.
 
-> **Phase 11 — in-app settings panel**: From Phase 11 onward, all settings except
-> `REASONIC_DB_PATH` can be changed from inside the app via the gear icon in the header.
-> Settings entered through the panel are persisted in `reasonic.db` and take effect on
-> the next request without restarting the app. `.env.local` values act as the initial
-> fallback if the database has no value for a key.
+> **First-run seeding**: On the very first startup, Reasonic reads any values present in
+> `.env.local` and writes them into `reasonic.db`. After that, `.env.local` is only needed
+> for the two API keys (which retain an env-var fallback). All other settings live
+> permanently in the database and can be changed from the in-app settings panel.
 
-### Full list of supported variables
+### Environment variables reference
 
-| Variable | Required | Default | Notes |
-|----------|----------|---------|-------|
-| `GEMINI_API_KEY` | Yes | — | Google Gemini authentication key |
-| `LASTFM_API_KEY` | Yes | — | Last.fm key for album art |
-| `REASONIC_DB_PATH` | No | `reasonic.db` next to binary | **Not UI-configurable** |
-| `GEMINI_MODEL` | No | `gemini-2.5-pro` | |
-| `GEMINI_BASE_URL` | No | `https://generativelanguage.googleapis.com` | |
-| `LASTFM_BASE_URL` | No | `https://ws.audioscrobbler.com/2.0/` | |
-| `OLLAMA_BASE_URL` | No | `http://localhost:11434` | |
-| `OLLAMA_WHISPER_MODEL` | No | `llama3.1:8b` | Inner Whisper model |
-| `OLLAMA_SHOUT_MODEL` | No | `gemma4:e4b` | Inner Shout model |
-| `CLEMENTINE_DB_PATH` | No | — | Required for Clementine integration |
-| `CLEMENTINE_EXE_PATH` | No | `clementine` | |
-| `CLEMENTINE_MATCH_THRESHOLD` | No | `0.75` | Fuzzy-match threshold 0–1 |
-| `RECOMMENDATION_MIN_TRACKS` | No | `10` | |
-| `RECOMMENDATION_MAX_TRACKS` | No | `20` | |
-| `RECOMMENDATION_SUGGESTION_CACHE_MINUTES` | No | `60` | |
-| `RECOMMENDATION_HISTORY_MAX_ROWS` | No | `10000` | Max rows in recommendation_history before oldest are trimmed |
-| `SESSION_MEMORY_SIZE` | No | `25` | Max AI replies kept in memory |
-| `SESSION_DEFAULT_TRACK_DURATION_SECONDS` | No | `210` | Assumed duration for tracks without Clementine data |
-| `USE_USER_LOCATION` | No | `false` | UI-configurable only; send user city/country to AI with each recommendation |
-| `USE_CURRENT_WEATHER` | No | `false` | UI-configurable only; send current weather interpretation to AI with each recommendation |
+Only these two variables are **required**. All others are optional or become unnecessary
+after the first run.
 
----
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `GEMINI_API_KEY` | **Yes** | Google Gemini authentication key. Seeded to DB on first run; env var kept as fallback. |
+| `LASTFM_API_KEY` | **Yes** | Last.fm key for album art. Seeded to DB on first run; env var kept as fallback. |
+| `REASONIC_DB_PATH` | No | Path to `reasonic.db`. Default: `reasonic.db` next to the binary. **Not UI-configurable.** Must remain in `.env.local` if you use a non-default path. |
+| `CLEMENTINE_DB_PATH` | No | Path to your Clementine database copy. Required only for Clementine integration. Seeded to DB on first run if present; configure via settings panel afterward. |
 
-## Understanding environment variables in Linux
-
-There are several ways to set environment variables in Linux. Here is a plain-language
-explanation of the main approaches, from simplest to most permanent.
-
-### A — Session-only (disappears when you close the terminal)
-
-```bash
-export GEMINI_API_KEY=your-key-here
-```
-
-Use this when you want to test something quickly. The variable exists only in your
-current terminal session and is gone the moment you close it.
-
-### B — Persistent for your user (survives reboots, applies to every new terminal)
-
-Add the `export` line to `~/.bashrc` (for interactive shells) or `~/.profile` (for
-login shells). Most of the time `~/.bashrc` is the right choice on SUSE.
-
-```bash
-echo 'export GEMINI_API_KEY=your-key-here' >> ~/.bashrc
-source ~/.bashrc   # apply immediately without restarting the terminal
-```
-
-This is convenient but puts secrets in a plain-text file in your home directory, which
-is fine for a personal machine but not ideal for shared servers.
-
-### C — Per-application .env.local file (what Reasonic uses)
-
-This is what `start.sh` already does for you. You create a `.env.local` file in the
-app's folder, and the start script loads it automatically before launching the binary.
-The variables only exist for the lifetime of that `Reco.Api` process.
-
-This is the **recommended approach** for Reasonic — secrets stay next to the app, are
-never exported globally, and are easy to update without touching your shell config.
-
-### D — In-app settings panel (Phase 11+)
-
-From Phase 11 onward, most settings (including API keys) can be changed via the gear
-icon in the app header. Changes are persisted to `reasonic.db` and take effect
-immediately on the next request — no restart needed. This is the most convenient way
-to make runtime changes after initial deployment.
-
-`REASONIC_DB_PATH` cannot be changed via the UI (the database must already exist before
-the settings table inside it can be read).
-
-### E — systemd service (for running at startup)
-
-If you want the app to start automatically when the Linux machine boots, see the
-[Optional: Run as a systemd service](#optional-run-as-a-systemd-service) section below.
-systemd has its own mechanism for environment variables that avoids shell config files
-entirely.
+> **All other settings** (model names, API URLs, thresholds, track limits, etc.) are
+> seeded into `reasonic.db` automatically on first run using built-in defaults. You never
+> need to set them in `.env.local`. Change them any time via the in-app settings panel
+> (gear icon in the header).
 
 ---
 
@@ -213,11 +156,11 @@ chmod +x start.sh
 ./start.sh
 ```
 
-You should see:
+You should see startup output including lines like:
 
 ```
-Loading environment from .env.local...
-Starting Reasonic at http://localhost:12500 — press Ctrl+C to stop
+Applying migration 'Phase19_AppSettingDefaults'.
+GEMINI_API_KEY configured (starts with: AIza…)
 ```
 
 Open a browser on the Linux machine and go to `http://localhost:12500`.
@@ -326,9 +269,8 @@ by `rsync` unless you explicitly delete it.
 
 ### Database migrations on startup
 
-From this release onward, Reasonic uses **EF Core migrations** to keep the database
-schema up to date. There is nothing manual to do — migrations run automatically when
-the app starts.
+Reasonic uses **EF Core migrations** to keep the database schema up to date. There is
+nothing manual to do — migrations run automatically when the app starts.
 
 **What happens at startup:**
 
@@ -340,34 +282,9 @@ the app starts.
 3. **Fresh install**: all migrations run in order, creating the complete schema from scratch.
 4. **Subsequent upgrades**: only migrations that have not yet been applied are run.
 
-After the migration runs, you should see log lines like:
-
-```
-Applying migration '20260506182629_InitialSchema'.   ← only on a brand-new install
-Applying migration '20260506182637_CleanupRenamedPromptKeys'.
-```
-
-Or, if you are upgrading from a pre-migration database:
-
-```
-Stamping existing database at InitialSchema baseline.
-Applying migration '20260506182637_CleanupRenamedPromptKeys'.
-```
-
-**What `CleanupRenamedPromptKeys` does to your settings:**
-
-| Old key (removed) | Action |
-|---|---|
-| `GEMINI_RECOMMENDATION_INSTRUCTION` | Value copied to `RECOMMENDATION_INSTRUCTION` if you had customised it, then deleted |
-| `OLLAMA_RECOMMENDATION_INSTRUCTION` | Deleted (both providers now share one prompt) |
-| `CHAT_SYSTEM_INSTRUCTION` | Deleted (dead code removed in this release) |
-
-If you had customised `GEMINI_RECOMMENDATION_INSTRUCTION`, your text is automatically
-carried over to `RECOMMENDATION_INSTRUCTION`. Nothing else in your settings is affected.
-
-> **If something goes wrong with the database**: stop the app, make a backup copy of
-> `reasonic.db`, then restart. The migration is wrapped in a transaction — either it
-> fully applies or the database is left unchanged.
+After migrations, the app seeds default values for all settings into `reasonic.db` if
+they are not already present. This happens on every startup, so new defaults introduced
+in an upgrade are always available.
 
 ---
 
@@ -383,7 +300,7 @@ dotnet tool restore
 
 # Create a new migration (from inside the API project)
 cd Reco.Api
-dotnet ef migrations add Phase16_YourDescription
+dotnet ef migrations add Phase20_YourDescription
 ```
 
 This generates three files inside `Migrations\` — commit all of them. The migration
@@ -418,8 +335,9 @@ protected override void Up(MigrationBuilder migrationBuilder)
 | `error while loading shared libraries: libicu*` | Missing ICU | `sudo zypper install libicu` or add `export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` to `.env.local` |
 | `Address already in use :12500` | Port taken by another process | `lsof -i :12500` then kill the process, or change the port in `start.sh` |
 | App starts but browser shows nothing | Firewall blocking port | `sudo firewall-cmd --add-port=12500/tcp --permanent && sudo firewall-cmd --reload` |
-| `WARNING: GEMINI_API_KEY is not set` | Key not in `.env.local` | Add key to `.env.local`, or use the in-app settings panel |
-| `WARNING: LASTFM_API_KEY is not set` | Key not in `.env.local` | Add key to `.env.local`, or use the in-app settings panel; album art will be absent until set |
-| Album art missing | `LASTFM_API_KEY` not set | Set via `.env.local` or in-app settings panel |
-| AI not responding | `GEMINI_API_KEY` wrong or missing | Check key in `.env.local` or via in-app settings panel |
-| Ollama models not working | Ollama not running or wrong URL | Ensure Ollama is running; check `OLLAMA_BASE_URL` in settings |
+| `WARNING: GEMINI_API_KEY is not set` | Key not in `.env.local` and not in DB | Add `GEMINI_API_KEY=...` to `.env.local`, or set it via the in-app settings panel |
+| `WARNING: LASTFM_API_KEY is not set` | Key not in `.env.local` and not in DB | Add `LASTFM_API_KEY=...` to `.env.local`, or set it via the in-app settings panel; album art will be absent until set |
+| Album art missing | `LASTFM_API_KEY` not set | Set via `.env.local` (first run) or in-app settings panel |
+| AI not responding | `GEMINI_API_KEY` wrong or missing | Check via in-app settings panel or `.env.local` |
+| Ollama models not working | Ollama not running or wrong URL | Ensure Ollama is running; check `OLLAMA_BASE_URL` in settings panel |
+| Settings reset after upgrade | `reasonic.db` was deleted during re-deploy | Use `rsync --delete` carefully; the DB file is not in `dist/` and will not be deleted by rsync unless the target folder is wiped |

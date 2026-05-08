@@ -28,6 +28,8 @@ The app is being built in phases:
 15. **Phase 15:** Safe DB upgrades — EF Core migrations introduced (hybrid mode: repositories keep raw ADO.NET, EF only tracks migration history); `__EFMigrationsHistory` table; `DatabaseBaseline` stamps existing databases at `InitialSchema` so only new migrations run; `CleanupRenamedPromptKeys` migration renames `GEMINI_RECOMMENDATION_INSTRUCTION` → `RECOMMENDATION_INSTRUCTION` and removes dead keys; `dotnet ef migrations add` workflow documented in linux deployment guide
 16. **Phase 16:** Environmental context — voice toggle buttons moved from header to Settings modal under "Active Voice" section with model names as labels (reads configured `GEMINI_MODEL`, `OLLAMA_WHISPER_MODEL`, `OLLAMA_SHOUT_MODEL`); header now shows current city/country from IP geolocation (`geo.kamero.ai`); new "Environmental Context" settings section with "Use User Location" and "Use Current Weather" checkboxes (persisted in `reasonic.db`); when enabled, location and/or WMO weather interpretation is appended to each recommendation prompt (not diary); weather uses Open-Meteo free API; geo/weather resolved browser-side for accurate user IP
 17. **Phase 17:** Recommendation history no-repeat — persistent `recommendation_history` table (never soft-deleted, survives memory busts); every batch of AI-suggested tracks is written to this table after a response; the last 100 recently recommended tracks are injected into every recommendation prompt as a "do not suggest again" block; table capped at `RECOMMENDATION_HISTORY_MAX_ROWS` rows (default 10,000, oldest deleted first, configurable via Settings modal under Recommendations)
+18. **Phase 18:** Settings improvements — two standing rules applied: (1) all non-secret settings have per-field reset-to-default buttons and "Leave blank to use environment variable or default" hint; defaults served by `GET /api/settings/defaults` from new `AppSettingDefaults` class (not hardcoded in Angular); `isSecret: true` field flag controls API key exclusion; (2) `floatLabel="always"` on every form field in the settings modal eliminates label-overlaps-value rendering bug caused by Angular Material outline notch width
+19. **Phase 19:** Settings DB seeding — all non-secret defaults seeded into `app_settings` on startup (INSERT OR IGNORE); new `app_setting_defaults` table stores canonical defaults (always UPSERT on startup so they update with app upgrades); `GET /api/settings/defaults` now reads from DB; `AppSettingsService` bypasses env var lookup for non-secret settings (DB-only after seeding); API keys (`GEMINI_API_KEY`, `LASTFM_API_KEY`) retain env var fallback; `CLEMENTINE_DB_PATH` seeded from env var on first run; only `REASONIC_DB_PATH` and the two API keys need to be in `.env.local`
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:
@@ -107,28 +109,57 @@ Use these locations as the primary sources of truth:
 
 ## Current Known Environment Variables
 
-These are bootstrap / fallback values. From Phase 11 onward, all except `REASONIC_DB_PATH` can be overridden at runtime via the in-app settings panel.
+From Phase 19 onward, only three environment variables are needed. All other settings are
+seeded into `reasonic.db` on first run and managed exclusively from the in-app settings panel.
 
-- `REASONIC_DB_PATH` — path to the main SQLite database (default: `reasonic.db` next to the binary); **not UI-configurable**
-- `GEMINI_API_KEY` — required; Google Gemini authentication key
-- `GEMINI_MODEL` — Gemini model tag (default: `gemini-2.5-pro`)
-- `GEMINI_BASE_URL` — Gemini API base URL (default: `https://generativelanguage.googleapis.com`)
-- `LASTFM_API_KEY` — required; Last.fm authentication key for album art
-- `LASTFM_BASE_URL` — Last.fm API base URL (default: `https://ws.audioscrobbler.com/2.0/`)
-- `OLLAMA_BASE_URL` — Ollama server URL (default: `http://localhost:11434`)
-- `OLLAMA_WHISPER_MODEL` — model tag for "Inner Whisper" (default: `llama3.1:8b`)
-- `OLLAMA_SHOUT_MODEL` — model tag for "Inner Shout" (default: `gemma4:e4b`)
-- `CLEMENTINE_DB_PATH` — path to the Clementine SQLite database copy (no default; must be set)
-- `CLEMENTINE_MATCH_THRESHOLD` — fuzzy-match similarity threshold 0–1 (default: `0.75`)
-- `CLEMENTINE_EXE_PATH` — path to Clementine executable (default: `C:\Program Files (x86)\Clementine\clementine.exe` on Windows, `clementine` on Linux)
-- `RECOMMENDATION_MIN_TRACKS` — minimum tracks to request from AI (default: `10`)
-- `RECOMMENDATION_MAX_TRACKS` — maximum tracks to request from AI (default: `20`)
-- `RECOMMENDATION_SUGGESTION_CACHE_MINUTES` — suggestion cache lifetime in minutes (default: `60`)
-- `RECOMMENDATION_HISTORY_MAX_ROWS` — maximum rows kept in `recommendation_history` table before oldest are deleted (default: `10000`)
-- `SESSION_MEMORY_SIZE` — max AI replies kept before FIFO eviction (default: `25`)
-- `SESSION_DEFAULT_TRACK_DURATION_SECONDS` — assumed duration for tracks with no Clementine data (default: `210` = 3.5 min)
-- `USE_USER_LOCATION` — UI-only setting (stored in `app_settings`); when `"true"`, the user's city/country is appended to each recommendation prompt (default: `"false"`)
-- `USE_CURRENT_WEATHER` — UI-only setting (stored in `app_settings`); when `"true"`, the current WMO weather interpretation is appended to each recommendation prompt (default: `"false"`)
+### Required on every run
+- `GEMINI_API_KEY` — Google Gemini authentication key. Seeded from env var into DB on first run; env var retained as fallback thereafter.
+- `LASTFM_API_KEY` — Last.fm authentication key for album art. Same seeding behaviour as above.
+
+### Required only when using a non-default location
+- `REASONIC_DB_PATH` — path to `reasonic.db` (default: `reasonic.db` next to the binary). **Not UI-configurable.** Only needed in `.env.local` if you store the DB elsewhere.
+
+### First-run only (seeded to DB, then no longer needed)
+- `CLEMENTINE_DB_PATH` — path to the Clementine SQLite database copy. Read from env var on first run and stored in DB; configure via settings panel afterward.
+
+### No longer needed as environment variables (Phase 19+)
+All of the following are seeded into `reasonic.db` automatically. Set them from the in-app
+settings panel if you need non-default values:
+
+| Setting key | Default |
+|---|---|
+| `GEMINI_MODEL` | `gemini-2.5-pro` |
+| `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com` |
+| `LASTFM_BASE_URL` | `https://ws.audioscrobbler.com/2.0/` |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` |
+| `OLLAMA_WHISPER_MODEL` | `llama3.1:8b` |
+| `OLLAMA_SHOUT_MODEL` | `gemma4:e4b` |
+| `CLEMENTINE_EXE_PATH` | `clementine` (Linux) / `C:\Program Files (x86)\Clementine\clementine.exe` (Windows) |
+| `CLEMENTINE_MATCH_THRESHOLD` | `0.75` |
+| `RECOMMENDATION_MIN_TRACKS` | `10` |
+| `RECOMMENDATION_MAX_TRACKS` | `20` |
+| `RECOMMENDATION_SUGGESTION_CACHE_MINUTES` | `60` |
+| `RECOMMENDATION_HISTORY_MAX_ROWS` | `10000` |
+| `SESSION_MEMORY_SIZE` | `25` |
+| `SESSION_DEFAULT_TRACK_DURATION_SECONDS` | `210` |
+| `USE_USER_LOCATION` | `false` |
+| `USE_CURRENT_WEATHER` | `false` |
+
+## Settings Modal Rules (Phase 18+)
+
+When adding a new setting to the settings modal:
+
+1. **Non-secret settings** (URLs, model names, thresholds, numeric limits):
+   - Add a constant to `AppSettingDefaults.All` in `Reco.Api/Services/AppSettingDefaults.cs`.
+   - Add a `SettingField` entry in `SETTINGS_GROUPS` with **no** hardcoded `placeholder` (the API-loaded default will be used as placeholder automatically).
+   - The reset button and "Leave blank to use default" hint appear automatically.
+
+2. **Secret / API key settings**:
+   - Set `isSecret: true` on the `SettingField`.
+   - Do **not** add to `AppSettingDefaults` — secrets have no meaningful default.
+   - The hint still appears; the reset button does not.
+
+3. **Label length**: `floatLabel="always"` is already on every form field. Labels always sit above the input; no notch sizing issues can occur. Keep labels concise but there is no hard limit.
 
 ## Build / Test Expectations
 When making changes, always consider:

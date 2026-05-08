@@ -17,70 +17,71 @@ export interface SettingField {
   key: string;
   label: string;
   type: 'text' | 'password' | 'number' | 'textarea';
+  /** Descriptive placeholder shown when no API default exists for this key. */
   placeholder?: string;
+  /** True for API keys / secrets: no reset button, no default value. */
+  isSecret?: boolean;
 }
 
 export interface SettingsGroup {
   title: string;
   fields: SettingField[];
-  hasResets?: boolean;
 }
 
 export const SETTINGS_GROUPS: SettingsGroup[] = [
   {
     title: 'Gemini (Cosmic Voice)',
     fields: [
-      { key: 'GEMINI_API_KEY',  label: 'API Key',   type: 'password', placeholder: 'Gemini API key' },
-      { key: 'GEMINI_MODEL',    label: 'Model',     type: 'text',     placeholder: 'e.g. gemini-2.5-pro' },
-      { key: 'GEMINI_BASE_URL', label: 'Base URL',  type: 'text',     placeholder: 'https://generativelanguage.googleapis.com' },
+      { key: 'GEMINI_API_KEY',  label: 'API Key',  type: 'password', placeholder: 'Gemini API key', isSecret: true },
+      { key: 'GEMINI_MODEL',    label: 'Model',    type: 'text' },
+      { key: 'GEMINI_BASE_URL', label: 'Base URL', type: 'text' },
     ],
   },
   {
     title: 'Ollama (Inner Voices)',
     fields: [
-      { key: 'OLLAMA_BASE_URL',      label: 'Base URL',            type: 'text', placeholder: 'http://localhost:11434' },
-      { key: 'OLLAMA_WHISPER_MODEL', label: 'Inner Whisper model', type: 'text', placeholder: 'llama3.1:8b' },
-      { key: 'OLLAMA_SHOUT_MODEL',   label: 'Inner Shout model',   type: 'text', placeholder: 'gemma4:e4b' },
+      { key: 'OLLAMA_BASE_URL',      label: 'Base URL',            type: 'text' },
+      { key: 'OLLAMA_WHISPER_MODEL', label: 'Inner Whisper model', type: 'text' },
+      { key: 'OLLAMA_SHOUT_MODEL',   label: 'Inner Shout model',   type: 'text' },
     ],
   },
   {
     title: 'Last.fm (Album art)',
     fields: [
-      { key: 'LASTFM_API_KEY',  label: 'API Key',  type: 'password', placeholder: 'Last.fm read API key' },
-      { key: 'LASTFM_BASE_URL', label: 'Base URL', type: 'text',     placeholder: 'https://ws.audioscrobbler.com/2.0/' },
+      { key: 'LASTFM_API_KEY',  label: 'API Key',  type: 'password', placeholder: 'Last.fm read API key', isSecret: true },
+      { key: 'LASTFM_BASE_URL', label: 'Base URL', type: 'text' },
     ],
   },
   {
     title: 'Clementine',
     fields: [
       { key: 'CLEMENTINE_DB_PATH',         label: 'Database path',   type: 'text',   placeholder: 'Path to clementine.db copy' },
-      { key: 'CLEMENTINE_EXE_PATH',        label: 'Executable path', type: 'text',   placeholder: 'Path to clementine.exe' },
-      { key: 'CLEMENTINE_MATCH_THRESHOLD', label: 'Match threshold', type: 'number', placeholder: '0.75' },
+      { key: 'CLEMENTINE_EXE_PATH',        label: 'Executable path', type: 'text' },
+      { key: 'CLEMENTINE_MATCH_THRESHOLD', label: 'Match threshold', type: 'number' },
     ],
   },
   {
     title: 'Recommendations',
     fields: [
-      { key: 'RECOMMENDATION_MIN_TRACKS',               label: 'Min tracks',              type: 'number', placeholder: '10' },
-      { key: 'RECOMMENDATION_MAX_TRACKS',               label: 'Max tracks',              type: 'number', placeholder: '20' },
-      { key: 'RECOMMENDATION_SUGGESTION_CACHE_MINUTES', label: 'Suggestion cache (min)',  type: 'number', placeholder: '60' },
-      { key: 'RECOMMENDATION_HISTORY_MAX_ROWS',         label: 'History cap (rows)',      type: 'number', placeholder: '10000' },
+      { key: 'RECOMMENDATION_MIN_TRACKS',               label: 'Min tracks',             type: 'number' },
+      { key: 'RECOMMENDATION_MAX_TRACKS',               label: 'Max tracks',             type: 'number' },
+      { key: 'RECOMMENDATION_SUGGESTION_CACHE_MINUTES', label: 'Suggestion cache (min)', type: 'number' },
+      { key: 'RECOMMENDATION_HISTORY_MAX_ROWS',         label: 'History cap (rows)',     type: 'number' },
     ],
   },
   {
     title: 'Session memory',
     fields: [
-      { key: 'SESSION_MEMORY_SIZE',                    label: 'Memory size (replies)',      type: 'number', placeholder: '25' },
-      { key: 'SESSION_DEFAULT_TRACK_DURATION_SECONDS', label: 'Default track duration (s)', type: 'number', placeholder: '210' },
+      { key: 'SESSION_MEMORY_SIZE',                    label: 'Memory size (replies)',      type: 'number' },
+      { key: 'SESSION_DEFAULT_TRACK_DURATION_SECONDS', label: 'Default track duration (s)', type: 'number' },
     ],
   },
   {
     title: 'AI Settings',
-    hasResets: true,
     fields: [
-      { key: 'SESSION_MEMORY_INSTRUCTION',         label: 'Session memory instruction',      type: 'textarea' },
-      { key: 'RECOMMENDATION_INSTRUCTION', label: 'Recommendation prompt', type: 'textarea' },
-      { key: 'DIARY_SYSTEM_INSTRUCTION',           label: 'Diary system instruction',        type: 'textarea' },
+      { key: 'SESSION_MEMORY_INSTRUCTION',  label: 'Session memory instruction', type: 'textarea' },
+      { key: 'RECOMMENDATION_INSTRUCTION',  label: 'Recommendation prompt',      type: 'textarea' },
+      { key: 'DIARY_SYSTEM_INSTRUCTION',    label: 'Diary system instruction',   type: 'textarea' },
       { key: 'MOOD_ANNOTATION_POETIC',      label: 'Mood annotation: Poetic',      type: 'text' },
       { key: 'MOOD_ANNOTATION_HUMOROUS',    label: 'Mood annotation: Humorous',    type: 'text' },
       { key: 'MOOD_ANNOTATION_COSMIC',      label: 'Mood annotation: Cosmic',      type: 'text' },
@@ -191,6 +192,11 @@ export class SettingsModalComponent implements OnInit {
   protected fieldType(field: SettingField): string {
     if (field.type === 'password') return this.isRevealed(field.key) ? 'text' : 'password';
     return 'text';
+  }
+
+  /** Effective placeholder: API-loaded default takes precedence over static definition. */
+  protected placeholderFor(field: SettingField): string {
+    return this.defaults()[field.key] ?? field.placeholder ?? '';
   }
 
   protected resetField(key: string): void {

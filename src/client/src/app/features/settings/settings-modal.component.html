@@ -63,14 +63,14 @@
         <section class="settings-group">
           <h3 class="settings-group-title">{{ group.title }}</h3>
           @for (field of group.fields; track field.key) {
-            <div class="field-row" [class.field-row--resettable]="group.hasResets">
-              <mat-form-field appearance="outline" class="settings-field">
+            <div class="field-row" [class.field-row--resettable]="!field.isSecret">
+              <mat-form-field appearance="outline" floatLabel="always" class="settings-field">
                 <mat-label>{{ field.label }}</mat-label>
                 @if (field.type === 'textarea') {
                   <textarea
                     matInput
                     [formControlName]="field.key"
-                    [placeholder]="field.placeholder ?? ''"
+                    [placeholder]="placeholderFor(field)"
                     rows="5"
                     autocomplete="off"
                     spellcheck="false"
@@ -81,7 +81,7 @@
                     matInput
                     [type]="fieldType(field)"
                     [formControlName]="field.key"
-                    [placeholder]="field.placeholder ?? ''"
+                    [placeholder]="placeholderFor(field)"
                     autocomplete="off"
                     spellcheck="false"
                   />
@@ -97,11 +97,9 @@
                     </button>
                   }
                 }
-                @if (!group.hasResets) {
-                  <mat-hint>Leave blank to use environment variable or default</mat-hint>
-                }
+                <mat-hint>Leave blank to use environment variable or default</mat-hint>
               </mat-form-field>
-              @if (group.hasResets) {
+              @if (!field.isSecret) {
                 <button
                   mat-icon-button
                   type="button"

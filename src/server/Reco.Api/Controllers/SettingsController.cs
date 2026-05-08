@@ -10,16 +10,13 @@ public class SettingsController : ControllerBase
 {
     private readonly IAppSettingsRepository _repo;
     private readonly IAppSettingsService _settings;
-    private readonly IAiPromptService _prompts;
 
     public SettingsController(
         IAppSettingsRepository repo,
-        IAppSettingsService settings,
-        IAiPromptService prompts)
+        IAppSettingsService settings)
     {
         _repo     = repo;
         _settings = settings;
-        _prompts  = prompts;
     }
 
     [HttpGet]
@@ -31,8 +28,8 @@ public class SettingsController : ControllerBase
     }
 
     [HttpGet("defaults")]
-    public IActionResult GetDefaults() =>
-        Ok(_prompts.GetAllDefaults());
+    public async Task<IActionResult> GetDefaults() =>
+        Ok(await _repo.GetAllDefaultsAsync());
 
     [HttpPut]
     public async Task<IActionResult> UpdateSettings([FromBody] UpdateSettingsRequest request)
