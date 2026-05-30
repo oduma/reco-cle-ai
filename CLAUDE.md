@@ -30,6 +30,7 @@ The app is being built in phases:
 17. **Phase 17:** Recommendation history no-repeat — persistent `recommendation_history` table (never soft-deleted, survives memory busts); every batch of AI-suggested tracks is written to this table after a response; the last 100 recently recommended tracks are injected into every recommendation prompt as a "do not suggest again" block; table capped at `RECOMMENDATION_HISTORY_MAX_ROWS` rows (default 10,000, oldest deleted first, configurable via Settings modal under Recommendations)
 18. **Phase 18:** Settings improvements — two standing rules applied: (1) all non-secret settings have per-field reset-to-default buttons and "Leave blank to use environment variable or default" hint; defaults served by `GET /api/settings/defaults` from new `AppSettingDefaults` class (not hardcoded in Angular); `isSecret: true` field flag controls API key exclusion; (2) `floatLabel="always"` on every form field in the settings modal eliminates label-overlaps-value rendering bug caused by Angular Material outline notch width
 19. **Phase 19:** Settings DB seeding — all non-secret defaults seeded into `app_settings` on startup (INSERT OR IGNORE); new `app_setting_defaults` table stores canonical defaults (always UPSERT on startup so they update with app upgrades); `GET /api/settings/defaults` now reads from DB; `AppSettingsService` bypasses env var lookup for non-secret settings (DB-only after seeding); API keys (`GEMINI_API_KEY`, `LASTFM_API_KEY`) retain env var fallback; `CLEMENTINE_DB_PATH` seeded from env var on first run; only `REASONIC_DB_PATH` and the two API keys need to be in `.env.local`
+20. **Phase 20:** Avoid-artists filter — new "Personalization" section in the settings modal with a multi-line textarea (one artist per line) for artists the user never wants recommended; stored as `AVOIDED_ARTISTS` in `app_settings` (newline-delimited, no env var, no seeded default); injected into the recommendation prompt as a permanent avoid block (alongside the Phase 17 no-repeat history block); AI response also filtered server-side to strip any track whose artist matches an avoided artist (case-insensitive exact match); "Clear all" button empties the list; new `clearable` field flag on `SettingField` controls this button
 
 ## How to Navigate This Repository
 Use these locations as the primary sources of truth:
@@ -159,7 +160,13 @@ When adding a new setting to the settings modal:
    - Do **not** add to `AppSettingDefaults` — secrets have no meaningful default.
    - The hint still appears; the reset button does not.
 
-3. **Label length**: `floatLabel="always"` is already on every form field. Labels always sit above the input; no notch sizing issues can occur. Keep labels concise but there is no hard limit.
+3. **User-curated data fields** (e.g. avoided artists — no meaningful default, user-managed list):
+   - Set `clearable: true` on the `SettingField`.
+   - Do **not** add to `AppSettingDefaults` — there is no default value to reset to.
+   - Shows a "Clear all" button instead of "Reset to default"; no "Leave blank to use default" hint.
+   - Use a descriptive placeholder or label hint to explain the expected format.
+
+4. **Label length**: `floatLabel="always"` is already on every form field. Labels always sit above the input; no notch sizing issues can occur. Keep labels concise but there is no hard limit.
 
 ## Build / Test Expectations
 When making changes, always consider:

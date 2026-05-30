@@ -66,13 +66,20 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         var recentHistory    = await _sessionHistory.GetRecentRecommendationHistoryAsync(100);
         var noRepeatBlock    = BuildNoRepeatBlock(recentHistory);
 
+        var avoidedArtistsRaw = await _settings.GetStringAsync("AVOIDED_ARTISTS", "");
+        var avoidedArtists    = avoidedArtistsRaw
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .ToList();
+        var avoidArtistsBlock = BuildAvoidArtistsBlock(avoidedArtists);
+
         var annotation = await _aiPrompts.GetMoodAnnotationAsync(mood);
         var moodLine   = annotation is not null ? $"{annotation}\n\n" : string.Empty;
         var envLine    = BuildEnvironmentalContext(locationContext, weatherContext);
 
         var enrichedPrompt = sessionContext.Preamble is not null
-            ? $"{sessionContext.Preamble}\n\n{envLine}{noRepeatBlock}{moodLine}My question: {prompt}"
-            : $"{envLine}{noRepeatBlock}{moodLine}{prompt}";
+            ? $"{sessionContext.Preamble}\n\n{envLine}{noRepeatBlock}{avoidArtistsBlock}{moodLine}My question: {prompt}"
+            : $"{envLine}{noRepeatBlock}{avoidArtistsBlock}{moodLine}{prompt}";
 
         _logger.LogInformation(
             "[Recommendations] Requesting | provider: {Provider} | history turns: {HistoryCount} | preamble: {HasPreamble} | prompt: {Length} chars",
@@ -108,15 +115,24 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             providerUsed = "gemini";
         }
 
+        // Server-side safety net: strip any tracks by avoided artists in case the AI slipped one through.
+        var tracksToProcess = avoidedArtists.Count > 0
+            ? result.Tracks
+                .Where(t => !avoidedArtists.Any(a =>
+                    string.Equals(a, t.Artist?.Trim(), StringComparison.OrdinalIgnoreCase)))
+                .ToList<TrackSuggestion>()
+            : (IReadOnlyList<TrackSuggestion>)result.Tracks;
+        var filteredCount = result.Tracks.Count - tracksToProcess.Count;
+
         await _sessionHistory.LogUserChatAsync(prompt, promptTimestamp, mood);
         var aiReplyId = await _sessionHistory.LogAiReplyAsync(result.Narrative, DateTimeOffset.UtcNow);
 
-        var rawTracks = result.Tracks.Select(t => new RawTrack(t.Title, t.Artist, t.Album)).ToList();
+        var rawTracks = tracksToProcess.Select(t => new RawTrack(t.Title, t.Artist, t.Album)).ToList();
         if (rawTracks.Count > 0)
             await _sessionHistory.LogTrackSuggestionsAsync(rawTracks, aiReplyId);
         await _sessionHistory.SetActiveReplyIdAsync(aiReplyId);
 
-        var (annotatedTracks, message) = await AnnotateWithLocalLibraryAsync(result.Tracks, cancellationToken);
+        var (annotatedTracks, message) = await AnnotateWithLocalLibraryAsync(tracksToProcess, cancellationToken);
 
         var localTracks     = annotatedTracks.Where(t => t.InLocalLibrary).ToList();
         var discoveryTracks = annotatedTracks.Where(t => !t.InLocalLibrary).ToList();
@@ -125,10 +141,11 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         var localToReturn = (freshLocal.Count == 0 && localTracks.Count > 0) ? localTracks : freshLocal;
 
         _logger.LogInformation(
-            "[Recommendations] Provider: {Provider}{Fallback} | tracks: {Total} | local: {Local} | discovery: {Discovery} | after cache: {Fresh}{Override}",
+            "[Recommendations] Provider: {Provider}{Fallback} | tracks: {Total}{Filtered} | local: {Local} | discovery: {Discovery} | after cache: {Fresh}{Override}",
             providerUsed,
             usedFallback ? " (fallback)" : string.Empty,
             result.Tracks.Count,
+            filteredCount > 0 ? $" ({filteredCount} avoid-filtered)" : string.Empty,
             localTracks.Count,
             discoveryTracks.Count,
             freshLocal.Count,
@@ -164,6 +181,18 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         return tracks
             .Select((t, i) => t with { AlbumArtUrl = artUrls[i] })
             .ToList();
+    }
+
+    private static string BuildAvoidArtistsBlock(IReadOnlyList<string> artists)
+    {
+        if (artists.Count == 0) return string.Empty;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("The following artists are on the user's permanent avoid list — do not recommend any track by these artists under any circumstances:");
+        foreach (var a in artists)
+            sb.AppendLine($"- {a}");
+        sb.AppendLine();
+        return sb.ToString();
     }
 
     private static string BuildNoRepeatBlock(IReadOnlyList<RawTrack> history)

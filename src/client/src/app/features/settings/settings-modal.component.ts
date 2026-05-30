@@ -21,6 +21,8 @@ export interface SettingField {
   placeholder?: string;
   /** True for API keys / secrets: no reset button, no default value. */
   isSecret?: boolean;
+  /** True for user-curated lists with no meaningful default: shows a "Clear all" button instead of "Reset to default". */
+  clearable?: boolean;
 }
 
 export interface SettingsGroup {
@@ -90,6 +92,18 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { key: 'MOOD_ANNOTATION_CHAOTIC',     label: 'Mood annotation: Chaotic',     type: 'text' },
       { key: 'MOOD_ANNOTATION_NOIR',        label: 'Mood annotation: Noir',        type: 'text' },
       { key: 'MOOD_ANNOTATION_PSYCHEDELIC', label: 'Mood annotation: Psychedelic', type: 'text' },
+    ],
+  },
+  {
+    title: 'Personalization',
+    fields: [
+      {
+        key: 'AVOIDED_ARTISTS',
+        label: 'Avoid these artists (one per line)',
+        type: 'textarea',
+        placeholder: 'Enter artist names, one per line…',
+        clearable: true,
+      },
     ],
   },
 ];
@@ -204,6 +218,10 @@ export class SettingsModalComponent implements OnInit {
     if (def !== undefined) {
       this.form.get(key)?.setValue(def);
     }
+  }
+
+  protected clearField(key: string): void {
+    this.form.get(key)?.setValue('');
   }
 
   protected save(): void {

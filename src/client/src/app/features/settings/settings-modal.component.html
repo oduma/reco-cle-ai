@@ -97,9 +97,11 @@
                     </button>
                   }
                 }
-                <mat-hint>Leave blank to use environment variable or default</mat-hint>
+                @if (!field.clearable) {
+                  <mat-hint>Leave blank to use environment variable or default</mat-hint>
+                }
               </mat-form-field>
-              @if (!field.isSecret) {
+              @if (!field.isSecret && !field.clearable) {
                 <button
                   mat-icon-button
                   type="button"
@@ -108,6 +110,17 @@
                   matTooltip="Reset to default"
                   [attr.aria-label]="'Reset ' + field.label + ' to default'">
                   <mat-icon>restart_alt</mat-icon>
+                </button>
+              }
+              @if (field.clearable) {
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="reset-field-btn"
+                  (click)="clearField(field.key)"
+                  matTooltip="Clear all"
+                  [attr.aria-label]="'Clear ' + field.label">
+                  <mat-icon>clear_all</mat-icon>
                 </button>
               }
             </div>
