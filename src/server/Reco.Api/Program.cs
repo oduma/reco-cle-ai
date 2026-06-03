@@ -12,6 +12,8 @@ builder.Services.AddSingleton<IAiPromptService, AiPromptService>();
 builder.Services.AddSingleton<ISessionHistoryRepository, SessionHistoryRepository>();
 builder.Services.AddSingleton<ISessionHistoryService, SessionHistoryService>();
 builder.Services.AddSingleton<ISessionContextBuilder, SessionContextBuilder>();
+builder.Services.AddSingleton<IPromptSetRepository, PromptSetRepository>();
+builder.Services.AddSingleton<IPromptSetService, PromptSetService>();
 
 builder.Services.AddHttpClient<GeminiGatewayService>();
 builder.Services.AddScoped<IGeminiGatewayService>(sp => sp.GetRequiredService<GeminiGatewayService>());

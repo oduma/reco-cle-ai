@@ -115,6 +115,73 @@
   }
 }
 
+// ── Prompt Sets section ───────────────────────────────────────────────────────
+
+.ps-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--reco-border);
+}
+
+.ps-name {
+  flex: 1;
+  font-size: 0.88rem;
+  font-family: var(--reco-font);
+  color: var(--reco-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ps-session-icon {
+  font-size: 1rem;
+  width: 1rem;
+  height: 1rem;
+  color: var(--reco-text-muted);
+  flex-shrink: 0;
+}
+
+.ps-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  width: 100%;
+}
+
+.ps-name-field {
+  width: 100%;
+}
+
+.ps-prompt-field {
+  width: 100%;
+}
+
+.ps-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ps-add-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  font-size: 0.82rem;
+}
+
+.ps-hint {
+  font-size: 0.82rem;
+  color: var(--reco-text-muted);
+  margin: 0;
+}
+
+.ps-error {
+  color: var(--reco-error);
+  font-size: 0.82rem;
+  margin: 4px 0 0;
+}
+
 .settings-actions {
   padding: 12px 24px 16px;
   gap: 8px;

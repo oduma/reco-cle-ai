@@ -13,14 +13,28 @@
       }
     </div>
 
-    <div class="memory-widget" aria-label="Session memory usage">
-      <span class="memory-label">{{ memoryUsed() }}/{{ memoryTotal() }}</span>
-      <div class="memory-bar" [style.--fill]="memoryFill()" [class.memory-bar--high]="memoryHigh()" role="progressbar"
-           [attr.aria-valuenow]="memoryUsed()" [attr.aria-valuemax]="memoryTotal()"></div>
+    @if (promptSetService.promptSets().length > 0) {
+      <mat-form-field class="prompt-set-selector" appearance="outline" subscriptSizing="dynamic">
+        <mat-select
+          [value]="promptSetService.activePromptSet()?.name"
+          (selectionChange)="onPromptSetChange($event.value)"
+          aria-label="Active prompt set">
+          @for (ps of promptSetService.promptSets(); track ps.id) {
+            <mat-option [value]="ps.name">{{ ps.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    }
+
+    <div class="memory-widget" [class.memory-widget--disabled]="sessionDisabled()" aria-label="Session memory usage">
+      <span class="memory-label">{{ sessionDisabled() ? '0/0' : memoryUsed() + '/' + memoryTotal() }}</span>
+      <div class="memory-bar" [style.--fill]="sessionDisabled() ? 0 : memoryFill()" [class.memory-bar--high]="memoryHigh() && !sessionDisabled()" role="progressbar"
+           [attr.aria-valuenow]="sessionDisabled() ? 0 : memoryUsed()" [attr.aria-valuemax]="sessionDisabled() ? 0 : memoryTotal()"></div>
       <button
         mat-icon-button
         class="memory-bust-btn"
         (click)="bustMemory()"
+        [disabled]="sessionDisabled()"
         matTooltip="Clear session memory"
         aria-label="Clear session memory">
         <mat-icon>delete_sweep</mat-icon>

@@ -127,6 +127,7 @@ public abstract class LlmGatewayBase : ILLMGatewayService
     public abstract Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
         IReadOnlyList<ConversationTurn> history,
+        string? systemInstruction = null,
         CancellationToken cancellationToken = default);
 
     public abstract Task<string> GenerateDiaryEntryAsync(

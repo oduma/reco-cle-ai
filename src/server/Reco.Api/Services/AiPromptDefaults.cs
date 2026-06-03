@@ -5,9 +5,11 @@ namespace Reco.Api.Services;
 /// These are seeded into the DB on first run and used as fallbacks when a key
 /// has been deleted or not yet written. All prompt templates may contain the
 /// following substitution tokens:
-///   {sessionMemoryInstruction}  — replaced with the value of SESSION_MEMORY_INSTRUCTION
-///   {minTracks}                 — replaced at call-time with the configured minimum
-///   {maxTracks}                 — replaced at call-time with the configured maximum
+///   {minTracks}  — replaced at call-time with the configured minimum
+///   {maxTracks}  — replaced at call-time with the configured maximum
+///
+/// ResponseFormatAppendix is appended automatically by BuildSystemInstruction to
+/// every prompt set at call time. It is never user-visible and never stored in the DB.
 /// </summary>
 public static class AiPromptDefaults
 {
@@ -29,17 +31,24 @@ public static class AiPromptDefaults
     // ── Default values ────────────────────────────────────────────────────────
 
     public const string RecommendationInstruction =
-        "You are an expert music discovery assistant. For each user request you must respond with a JSON object " +
-        "containing exactly two fields:\n" +
-        "- \"narrative\": a warm, conversational paragraph recommending music, written like a knowledgeable curator. " +
-        "Mention specific tracks and explain why you are recommending them. " +
-        "Wrap every track title and artist name in **double asterisks** — " +
+        "You are an expert music discovery assistant. Write a warm, conversational paragraph recommending music, " +
+        "like a knowledgeable curator. Mention specific tracks and explain why you are recommending them." +
+        "\n\nImportant: each user message may begin with a session history preamble that shows " +
+        "the full conversation timeline — what the user said, what you recommended, and what " +
+        "tracks they added to their player or looked up on YouTube. When this history is present, " +
+        "always reference it in your reply. Connect your new recommendations to what the user has " +
+        "demonstrably enjoyed or explored. Acknowledge the temporal context where relevant — note " +
+        "how long they have been listening and whether they are likely still listening. Make every " +
+        "response feel like a natural continuation of an ongoing personal conversation, not a " +
+        "fresh start.";
+
+    public const string ResponseFormatAppendix =
+        "\n\nFor each user request you must respond with a JSON object containing exactly two fields:\n" +
+        "- \"narrative\": your recommendation text. Wrap every track title and artist name in **double asterisks** — " +
         "for example: **Kind of Blue** by **Miles Davis**.\n" +
         "- \"tracks\": an array of the specific tracks you mention in your narrative. Each track must have " +
         "\"title\", \"artist\", and optionally \"album\".\n" +
-        "Return between {minTracks} and {maxTracks} tracks. " +
-        "Always return valid JSON and nothing else." +
-        "{sessionMemoryInstruction}";
+        "Return between {minTracks} and {maxTracks} tracks. Always return valid JSON and nothing else.";
 
     public const string DiarySystemInstruction =
         "You are a lyrical diarist writing in the voice of the listener. " +

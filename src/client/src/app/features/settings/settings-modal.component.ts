@@ -1,5 +1,5 @@
 import { Component, OnInit, signal } from '@angular/core';
-import { ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -11,6 +11,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { forkJoin } from 'rxjs';
 import { SettingsService } from '../../core/services/settings.service';
+import { PromptSetService } from '../../core/services/prompt-set.service';
+import { PromptSet } from '../../core/models/prompt-set.model';
 import { Provider } from '../../core/services/recommendation.service';
 
 export interface SettingField {
@@ -81,8 +83,6 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   {
     title: 'AI Settings',
     fields: [
-      { key: 'SESSION_MEMORY_INSTRUCTION',  label: 'Session memory instruction', type: 'textarea' },
-      { key: 'RECOMMENDATION_INSTRUCTION',  label: 'Recommendation prompt',      type: 'textarea' },
       { key: 'DIARY_SYSTEM_INSTRUCTION',    label: 'Diary system instruction',   type: 'textarea' },
       { key: 'MOOD_ANNOTATION_POETIC',      label: 'Mood annotation: Poetic',      type: 'text' },
       { key: 'MOOD_ANNOTATION_HUMOROUS',    label: 'Mood annotation: Humorous',    type: 'text' },
@@ -114,6 +114,7 @@ const PROVIDER_KEY = 'reco-provider';
   selector: 'app-settings-modal',
   standalone: true,
   imports: [
+    FormsModule,
     ReactiveFormsModule,
     MatButtonModule,
     MatButtonToggleModule,
@@ -148,9 +149,20 @@ export class SettingsModalComponent implements OnInit {
   // Tracks which password fields are revealed
   protected revealed = signal<Record<string, boolean>>({});
 
+  // ── Prompt set CRUD state ─────────────────────────────────────────────────
+  protected psLoading      = signal(false);
+  protected psSaving       = signal(false);
+  protected psError        = signal<string | null>(null);
+  protected editingId      = signal<number | null>(null);
+  protected addingNew      = signal(false);
+  protected editName       = signal('');
+  protected editUseSession = signal(true);
+  protected editPrompt     = signal('');
+
   constructor(
     private fb: FormBuilder,
     private settingsService: SettingsService,
+    private promptSetService: PromptSetService,
     private dialogRef: MatDialogRef<SettingsModalComponent>,
   ) {}
 
@@ -163,6 +175,9 @@ export class SettingsModalComponent implements OnInit {
     }
     this.form = this.fb.group(controls);
 
+    this.psLoading.set(true);
+    this.promptSetService.loadAll().subscribe({ error: () => {} });
+
     forkJoin({
       settings: this.settingsService.getSettings(),
       defaults: this.settingsService.getDefaults(),
@@ -173,13 +188,15 @@ export class SettingsModalComponent implements OnInit {
           if (this.form.contains(entry.key)) {
             this.form.get(entry.key)?.setValue(entry.value ?? '');
           }
-          if (entry.key === 'USE_USER_LOCATION')  this.useLocation.set(entry.value === 'true');
-          if (entry.key === 'USE_CURRENT_WEATHER') this.useWeather.set(entry.value === 'true');
+          if (entry.key === 'USE_USER_LOCATION')   this.useLocation.set(entry.value === 'true');
+          if (entry.key === 'USE_CURRENT_WEATHER')  this.useWeather.set(entry.value === 'true');
         }
         this.loading.set(false);
+        this.psLoading.set(false);
       },
       error: () => {
         this.loading.set(false);
+        this.psLoading.set(false);
       },
     });
   }
@@ -222,6 +239,69 @@ export class SettingsModalComponent implements OnInit {
 
   protected clearField(key: string): void {
     this.form.get(key)?.setValue('');
+  }
+
+  // ── Prompt Set CRUD ───────────────────────────────────────────────────────
+
+  protected get promptSets() { return this.promptSetService.promptSets; }
+
+  protected startEdit(ps: PromptSet): void {
+    this.editingId.set(ps.id);
+    this.editName.set(ps.name);
+    this.editUseSession.set(ps.useSession);
+    this.editPrompt.set(ps.recommendationPrompt);
+    this.addingNew.set(false);
+    this.psError.set(null);
+  }
+
+  protected cancelEdit(): void {
+    this.editingId.set(null);
+    this.addingNew.set(false);
+    this.psError.set(null);
+  }
+
+  protected startAdd(): void {
+    this.addingNew.set(true);
+    this.editingId.set(null);
+    this.editName.set('');
+    this.editUseSession.set(true);
+    this.editPrompt.set('');
+    this.psError.set(null);
+  }
+
+  protected saveEdit(id: number): void {
+    const name = this.editName().trim();
+    if (!name) { this.psError.set('Name is required.'); return; }
+    this.psSaving.set(true);
+    this.psError.set(null);
+    this.promptSetService.update(id, { name, useSession: this.editUseSession(), recommendationPrompt: this.editPrompt() })
+      .subscribe({
+        next: () => { this.psSaving.set(false); this.editingId.set(null); },
+        error: (err) => {
+          this.psSaving.set(false);
+          this.psError.set(err?.error?.error ?? 'Could not save.');
+        },
+      });
+  }
+
+  protected saveNew(): void {
+    const name = this.editName().trim();
+    if (!name) { this.psError.set('Name is required.'); return; }
+    this.psSaving.set(true);
+    this.psError.set(null);
+    this.promptSetService.create({ name, useSession: this.editUseSession(), recommendationPrompt: this.editPrompt() })
+      .subscribe({
+        next: () => { this.psSaving.set(false); this.addingNew.set(false); },
+        error: (err) => {
+          this.psSaving.set(false);
+          this.psError.set(err?.error?.error ?? 'Could not create.');
+        },
+      });
+  }
+
+  protected deletePromptSet(ps: PromptSet): void {
+    if (!confirm(`Delete prompt set "${ps.name}"? This cannot be undone.`)) return;
+    this.promptSetService.delete(ps.id).subscribe({ error: () => {} });
   }
 
   protected save(): void {

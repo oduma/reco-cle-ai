@@ -10,5 +10,6 @@ public interface IRecommendationOrchestrationService
         string? mood = null,
         string? locationContext = null,
         string? weatherContext = null,
+        string? promptSetName = null,
         CancellationToken cancellationToken = default);
 }

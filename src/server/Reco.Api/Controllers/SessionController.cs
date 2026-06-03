@@ -10,16 +10,19 @@ public class SessionController : ControllerBase
 {
     private readonly ISessionHistoryService _session;
     private readonly ITrackEnrichmentService _trackEnrichment;
+    private readonly IPromptSetService _promptSets;
     private readonly ILogger<SessionController> _logger;
 
     public SessionController(
         ISessionHistoryService session,
         ITrackEnrichmentService trackEnrichment,
+        IPromptSetService promptSets,
         ILogger<SessionController> logger)
     {
-        _session = session;
+        _session         = session;
         _trackEnrichment = trackEnrichment;
-        _logger = logger;
+        _promptSets      = promptSets;
+        _logger          = logger;
     }
 
     [HttpPost("events")]
@@ -30,15 +33,16 @@ public class SessionController : ControllerBase
         if (!SessionEventRequest.AllowedEventTypes.Contains(request.EventType))
             return BadRequest(new { error = $"eventType must be one of: {string.Join(", ", SessionEventRequest.AllowedEventTypes)}" });
 
-        var timestamp = request.Timestamp ?? DateTimeOffset.UtcNow;
+        var promptSetName = await _promptSets.GetActivePromptSetNameAsync();
+        var timestamp     = request.Timestamp ?? DateTimeOffset.UtcNow;
 
         await _session.LogTrackEventAsync(
             request.EventType, request.Artist, request.Album, request.Title,
-            request.DurationSeconds, timestamp);
+            request.DurationSeconds, timestamp, promptSetName);
 
         _logger.LogInformation(
-            "[Session] Track event logged | type: {EventType} | track: {Title} · {Artist}",
-            request.EventType, request.Title, request.Artist);
+            "[Session] Track event logged | type: {EventType} | track: {Title} · {Artist} | promptSet: {PromptSet}",
+            request.EventType, request.Title, request.Artist, promptSetName);
 
         return NoContent();
     }
@@ -46,22 +50,29 @@ public class SessionController : ControllerBase
     [HttpGet("memory")]
     public async Task<IActionResult> GetMemory()
     {
-        var status = await _session.GetMemoryStatusAsync();
+        var promptSetName = await _promptSets.GetActivePromptSetNameAsync();
+        var promptSet     = await _promptSets.GetByNameAsync(promptSetName);
+        if (promptSet is { UseSession: false })
+            return Ok(new { used = 0, total = 0 });
+
+        var status = await _session.GetMemoryStatusAsync(promptSetName);
         return Ok(new { used = status.Used, total = status.Total });
     }
 
     [HttpDelete("memory")]
     public async Task<IActionResult> BustMemory()
     {
-        await _session.BustMemoryAsync();
-        _logger.LogInformation("[Session] Memory busted — all active events soft-deleted");
+        var promptSetName = await _promptSets.GetActivePromptSetNameAsync();
+        await _session.BustMemoryAsync(promptSetName);
+        _logger.LogInformation("[Session] Memory busted for prompt set '{PromptSet}'", promptSetName);
         return NoContent();
     }
 
     [HttpGet("history")]
     public async Task<IActionResult> GetHistory()
     {
-        var history = await _session.GetSessionHistoryAsync();
+        var promptSetName = await _promptSets.GetActivePromptSetNameAsync();
+        var history       = await _session.GetSessionHistoryAsync(promptSetName);
         return Ok(history);
     }
 
@@ -79,11 +90,13 @@ public class SessionController : ControllerBase
     [HttpPost("active-reply")]
     public async Task<IActionResult> SetActiveReply([FromBody] SetActiveReplyRequest request)
     {
-        var history = await _session.GetSessionHistoryAsync();
+        var promptSetName = await _promptSets.GetActivePromptSetNameAsync();
+        var history       = await _session.GetSessionHistoryAsync(promptSetName);
+
         if (!history.Turns.Any(t => t.Role == "model" && t.EventId == request.ReplyId))
             return NotFound(new { error = $"Active AI reply {request.ReplyId} not found." });
 
-        await _session.SetActiveReplyIdAsync(request.ReplyId);
+        await _session.SetActiveReplyIdAsync(request.ReplyId, promptSetName);
         return NoContent();
     }
 }

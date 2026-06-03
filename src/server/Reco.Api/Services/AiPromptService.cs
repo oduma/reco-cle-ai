@@ -36,5 +36,21 @@ public class AiPromptService : IAiPromptService
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
+    public string BuildSystemInstruction(string template, int minTracks, int maxTracks)
+    {
+        var minStr = minTracks.ToString(CultureInfo.InvariantCulture);
+        var maxStr = maxTracks.ToString(CultureInfo.InvariantCulture);
+
+        var body = template
+            .Replace("{minTracks}", minStr, StringComparison.Ordinal)
+            .Replace("{maxTracks}", maxStr, StringComparison.Ordinal);
+
+        var appendix = AiPromptDefaults.ResponseFormatAppendix
+            .Replace("{minTracks}", minStr, StringComparison.Ordinal)
+            .Replace("{maxTracks}", maxStr, StringComparison.Ordinal);
+
+        return body + appendix;
+    }
+
     public IReadOnlyDictionary<string, string> GetAllDefaults() => AiPromptDefaults.All;
 }

@@ -1,11 +1,6 @@
 using Reco.Api.DTOs;
 using Reco.Api.Models;
 
-// Provider values accepted from the frontend
-// "gemini"        → Gemini cloud
-// "inner-whisper" → Ollama WhisperModel (llama3.1:8b)
-// "inner-shout"   → Ollama ShoutModel   (gemma4:e4b)
-
 namespace Reco.Api.Services;
 
 public class RecommendationOrchestrationService : IRecommendationOrchestrationService
@@ -19,6 +14,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
     private readonly ISessionHistoryService _sessionHistory;
     private readonly IAppSettingsService _settings;
     private readonly IAiPromptService _aiPrompts;
+    private readonly IPromptSetService _promptSetService;
     private readonly ILogger<RecommendationOrchestrationService> _logger;
 
     public RecommendationOrchestrationService(
@@ -31,6 +27,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         ISessionHistoryService sessionHistory,
         IAppSettingsService settings,
         IAiPromptService aiPrompts,
+        IPromptSetService promptSetService,
         ILogger<RecommendationOrchestrationService> logger)
     {
         _geminiGateway         = geminiGateway;
@@ -42,6 +39,7 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         _sessionHistory        = sessionHistory;
         _settings              = settings;
         _aiPrompts             = aiPrompts;
+        _promptSetService      = promptSetService;
         _logger                = logger;
     }
 
@@ -51,8 +49,26 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         string? mood = null,
         string? locationContext = null,
         string? weatherContext = null,
+        string? promptSetName = null,
         CancellationToken cancellationToken = default)
     {
+        // ── Resolve prompt set ────────────────────────────────────────────────
+        var resolvedName = promptSetName ?? await _promptSetService.GetActivePromptSetNameAsync();
+        var promptSet    = await _promptSetService.GetByNameAsync(resolvedName);
+        if (promptSet is null)
+        {
+            resolvedName = "Default";
+            promptSet    = await _promptSetService.GetByNameAsync("Default")
+                           ?? new PromptSet(0, "Default", true, AiPromptDefaults.RecommendationInstruction);
+        }
+
+        // ── Build system instruction from the prompt set ──────────────────────
+        var minTracks = await _settings.GetIntAsync("RECOMMENDATION_MIN_TRACKS", 10);
+        var maxTracks = await _settings.GetIntAsync("RECOMMENDATION_MAX_TRACKS", 20);
+        var systemInstruction = _aiPrompts.BuildSystemInstruction(
+            promptSet.RecommendationPrompt, minTracks, maxTracks);
+
+        // ── Provider selection ────────────────────────────────────────────────
         var isInnerWhisper = string.Equals(preferredProvider, "inner-whisper", StringComparison.OrdinalIgnoreCase);
         var isInnerShout   = string.Equals(preferredProvider, "inner-shout",   StringComparison.OrdinalIgnoreCase);
         var useLocal       = isInnerWhisper || isInnerShout;
@@ -61,8 +77,18 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             ? await _settings.GetStringAsync("OLLAMA_SHOUT_MODEL",   "gemma4:e4b")
             : await _settings.GetStringAsync("OLLAMA_WHISPER_MODEL", "llama3.1:8b");
 
-        var sessionContext = await _sessionContextBuilder.BuildAsync(cancellationToken);
+        // ── Session context (only when prompt set has session enabled) ────────
+        SessionContext sessionContext;
+        if (promptSet.UseSession)
+        {
+            sessionContext = await _sessionContextBuilder.BuildAsync(resolvedName, cancellationToken);
+        }
+        else
+        {
+            sessionContext = new SessionContext([], null, new MemoryStatus(0, 0));
+        }
 
+        // ── Build enriched user prompt ────────────────────────────────────────
         var recentHistory    = await _sessionHistory.GetRecentRecommendationHistoryAsync(100);
         var noRepeatBlock    = BuildNoRepeatBlock(recentHistory);
 
@@ -82,8 +108,10 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             : $"{envLine}{noRepeatBlock}{avoidArtistsBlock}{moodLine}{prompt}";
 
         _logger.LogInformation(
-            "[Recommendations] Requesting | provider: {Provider} | history turns: {HistoryCount} | preamble: {HasPreamble} | prompt: {Length} chars",
+            "[Recommendations] Requesting | provider: {Provider} | promptSet: {PromptSet} | useSession: {UseSession} | history: {HistoryCount} | preamble: {HasPreamble} | prompt: {Length} chars",
             useLocal ? ollamaModel : "gemini",
+            resolvedName,
+            promptSet.UseSession,
             sessionContext.History.Count,
             sessionContext.Preamble is not null,
             enrichedPrompt.Length);
@@ -97,25 +125,25 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         {
             try
             {
-                result       = await _ollamaGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, ollamaModel, cancellationToken);
+                result       = await _ollamaGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, ollamaModel, systemInstruction, cancellationToken);
                 providerUsed = isInnerShout ? "inner-shout" : "inner-whisper";
             }
             catch (Exception ex) when (IsOllamaFailure(ex))
             {
                 _logger.LogWarning("[Recommendations] Ollama unavailable ({Reason}) — falling back to Gemini",
                     ex is TaskCanceledException ? "timeout" : "connection refused");
-                result       = await _geminiGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, cancellationToken);
+                result       = await _geminiGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, systemInstruction, cancellationToken);
                 providerUsed = "gemini";
                 usedFallback = true;
             }
         }
         else
         {
-            result       = await _geminiGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, cancellationToken);
+            result       = await _geminiGateway.GetMusicRecommendationAsync(enrichedPrompt, sessionContext.History, systemInstruction, cancellationToken);
             providerUsed = "gemini";
         }
 
-        // Server-side safety net: strip any tracks by avoided artists in case the AI slipped one through.
+        // ── Server-side avoid-artist filter ──────────────────────────────────
         var tracksToProcess = avoidedArtists.Count > 0
             ? result.Tracks
                 .Where(t => !avoidedArtists.Any(a =>
@@ -124,13 +152,14 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
             : (IReadOnlyList<TrackSuggestion>)result.Tracks;
         var filteredCount = result.Tracks.Count - tracksToProcess.Count;
 
-        await _sessionHistory.LogUserChatAsync(prompt, promptTimestamp, mood);
-        var aiReplyId = await _sessionHistory.LogAiReplyAsync(result.Narrative, DateTimeOffset.UtcNow);
+        // ── Session logging (always log, even when useSession = false) ────────
+        await _sessionHistory.LogUserChatAsync(prompt, promptTimestamp, resolvedName, mood);
+        var aiReplyId = await _sessionHistory.LogAiReplyAsync(result.Narrative, DateTimeOffset.UtcNow, resolvedName);
 
         var rawTracks = tracksToProcess.Select(t => new RawTrack(t.Title, t.Artist, t.Album)).ToList();
         if (rawTracks.Count > 0)
-            await _sessionHistory.LogTrackSuggestionsAsync(rawTracks, aiReplyId);
-        await _sessionHistory.SetActiveReplyIdAsync(aiReplyId);
+            await _sessionHistory.LogTrackSuggestionsAsync(rawTracks, aiReplyId, resolvedName);
+        await _sessionHistory.SetActiveReplyIdAsync(aiReplyId, resolvedName);
 
         var (annotatedTracks, message) = await AnnotateWithLocalLibraryAsync(tracksToProcess, cancellationToken);
 
@@ -167,30 +196,22 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
         CancellationToken cancellationToken)
     {
         if (tracks.Count == 0) return tracks;
-
         var artTasks = tracks
             .Select(t => _lastFm.GetAlbumArtUrlAsync(t.Artist, t.Title, t.Album, cancellationToken))
             .ToArray();
-
         var artUrls = await Task.WhenAll(artTasks);
-
         _logger.LogInformation(
             "[Recommendations] Album art enriched: {Found}/{Total} tracks have art",
             artUrls.Count(u => u is not null), tracks.Count);
-
-        return tracks
-            .Select((t, i) => t with { AlbumArtUrl = artUrls[i] })
-            .ToList();
+        return tracks.Select((t, i) => t with { AlbumArtUrl = artUrls[i] }).ToList();
     }
 
     private static string BuildAvoidArtistsBlock(IReadOnlyList<string> artists)
     {
         if (artists.Count == 0) return string.Empty;
-
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("The following artists are on the user's permanent avoid list — do not recommend any track by these artists under any circumstances:");
-        foreach (var a in artists)
-            sb.AppendLine($"- {a}");
+        foreach (var a in artists) sb.AppendLine($"- {a}");
         sb.AppendLine();
         return sb.ToString();
     }
@@ -198,11 +219,9 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
     private static string BuildNoRepeatBlock(IReadOnlyList<RawTrack> history)
     {
         if (history.Count == 0) return string.Empty;
-
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("You have already recommended the following tracks recently — do not suggest them again:");
-        foreach (var t in history)
-            sb.AppendLine($"- {t.Artist} — {t.Title}");
+        foreach (var t in history) sb.AppendLine($"- {t.Artist} — {t.Title}");
         sb.AppendLine();
         return sb.ToString();
     }
@@ -225,12 +244,10 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
     {
         if (suggestions.Count == 0)
             return (suggestions, "No specific tracks were identified for this request.");
-
         try
         {
             var inventory = await _clementine.LoadInventoryAsync(cancellationToken);
             var threshold = await _settings.GetDoubleAsync("CLEMENTINE_MATCH_THRESHOLD", 0.75);
-
             var annotated = suggestions
                 .Select(s =>
                 {
@@ -243,7 +260,6 @@ public class RecommendationOrchestrationService : IRecommendationOrchestrationSe
                     };
                 })
                 .ToList();
-
             return (annotated, null);
         }
         catch (Exception ex)

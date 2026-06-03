@@ -17,11 +17,9 @@ public class SessionHistoryRepository : ISessionHistoryRepository
     public SessionHistoryRepository(IConfiguration configuration)
     {
         var dbPath = configuration["REASONIC_DB_PATH"] ?? "reasonic.db";
-
         var dir = Path.GetDirectoryName(Path.GetFullPath(dbPath));
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
-
         _connectionString = $"Data Source={dbPath}";
     }
 
@@ -34,76 +32,80 @@ public class SessionHistoryRepository : ISessionHistoryRepository
         string? album,
         string? title,
         double? durationSeconds,
+        string promptSetName,
         int? conversationBlock = null,
         string? mood = null)
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT INTO session_events
-                (event_type, timestamp, user_label, content, artist, album, title, duration_seconds, conversation_block, mood)
+                (event_type, timestamp, user_label, content, artist, album, title,
+                 duration_seconds, conversation_block, mood, prompt_set_name)
             VALUES
-                ($type, $ts, $user, $content, $artist, $album, $title, $dur, $block, $mood);
+                ($type, $ts, $user, $content, $artist, $album, $title,
+                 $dur, $block, $mood, $psName);
             SELECT last_insert_rowid();
             """;
-        cmd.Parameters.AddWithValue("$type",    eventType);
-        cmd.Parameters.AddWithValue("$ts",      timestamp.UtcDateTime.ToString("O"));
-        cmd.Parameters.AddWithValue("$user",    userLabel);
-        cmd.Parameters.AddWithValue("$content", (object?)content           ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$artist",  (object?)artist            ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$album",   (object?)album             ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$title",   (object?)title             ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$dur",     (object?)durationSeconds   ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$block",   (object?)conversationBlock ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$mood",    (object?)mood              ?? DBNull.Value);
-
+        cmd.Parameters.AddWithValue("$type",   eventType);
+        cmd.Parameters.AddWithValue("$ts",     timestamp.UtcDateTime.ToString("O"));
+        cmd.Parameters.AddWithValue("$user",   userLabel);
+        cmd.Parameters.AddWithValue("$content",(object?)content           ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$artist", (object?)artist            ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$album",  (object?)album             ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$title",  (object?)title             ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$dur",    (object?)durationSeconds   ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$block",  (object?)conversationBlock ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$mood",   (object?)mood              ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$psName", promptSetName);
         var result = await cmd.ExecuteScalarAsync();
         return Convert.ToInt32(result);
     }
 
-    public async Task AssignConversationBlockAsync(int aiReplyId)
+    public async Task AssignConversationBlockAsync(int aiReplyId, string promptSetName)
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             UPDATE session_events
             SET    conversation_block = $blockId
             WHERE  is_active = 1
-              AND  conversation_block IS NULL;
+              AND  conversation_block IS NULL
+              AND  prompt_set_name = $name;
             """;
         cmd.Parameters.AddWithValue("$blockId", aiReplyId);
+        cmd.Parameters.AddWithValue("$name",    promptSetName);
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task InsertTrackSuggestionsAsync(IReadOnlyList<RawTrack> rawTracks, int conversationBlock)
+    public async Task InsertTrackSuggestionsAsync(
+        IReadOnlyList<RawTrack> rawTracks,
+        int conversationBlock,
+        string promptSetName)
     {
         var json = JsonSerializer.Serialize(rawTracks, JsonOptions);
-
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT INTO session_events
-                (event_type, timestamp, user_label, content, conversation_block)
+                (event_type, timestamp, user_label, content, conversation_block, prompt_set_name)
             VALUES
-                ('track-suggestions', $ts, 'me', $content, $block);
+                ('track-suggestions', $ts, 'me', $content, $block, $name);
             """;
         cmd.Parameters.AddWithValue("$ts",      DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
         cmd.Parameters.AddWithValue("$content", json);
         cmd.Parameters.AddWithValue("$block",   conversationBlock);
+        cmd.Parameters.AddWithValue("$name",    promptSetName);
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task<IReadOnlyList<SessionEvent>> GetActiveEventsAsync()
+    public async Task<IReadOnlyList<SessionEvent>> GetActiveEventsAsync(string promptSetName)
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             SELECT id, event_type, timestamp, user_label,
@@ -111,9 +113,10 @@ public class SessionHistoryRepository : ISessionHistoryRepository
                    duration_seconds, is_active, conversation_block, mood
             FROM   session_events
             WHERE  is_active = 1
+              AND  prompt_set_name = $name
             ORDER  BY timestamp ASC, id ASC;
             """;
-
+        cmd.Parameters.AddWithValue("$name", promptSetName);
         var events = new List<SessionEvent>();
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -121,11 +124,10 @@ public class SessionHistoryRepository : ISessionHistoryRepository
         return events;
     }
 
-    public async Task<IReadOnlyList<HistoryTurnDto>> GetHistoryWithSuggestionsAsync()
+    public async Task<IReadOnlyList<HistoryTurnDto>> GetHistoryWithSuggestionsAsync(string promptSetName)
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             SELECT
@@ -141,11 +143,12 @@ public class SessionHistoryRepository : ISessionHistoryRepository
                 ) THEN 1 ELSE 0 END AS has_suggestions,
                 e.mood
             FROM   session_events e
-            WHERE  e.is_active   = 1
+            WHERE  e.is_active       = 1
+              AND  e.prompt_set_name = $name
               AND  e.event_type IN ('user-chat', 'ai-reply')
             ORDER  BY e.timestamp ASC, e.id ASC;
             """;
-
+        cmd.Parameters.AddWithValue("$name", promptSetName);
         var turns = new List<HistoryTurnDto>();
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -167,7 +170,6 @@ public class SessionHistoryRepository : ISessionHistoryRepository
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             SELECT content FROM session_events
@@ -177,22 +179,22 @@ public class SessionHistoryRepository : ISessionHistoryRepository
             LIMIT  1;
             """;
         cmd.Parameters.AddWithValue("$replyId", replyId);
-
         var result = await cmd.ExecuteScalarAsync();
         if (result is null or DBNull) return null;
-
         return JsonSerializer.Deserialize<List<RawTrack>>((string)result, JsonOptions);
     }
 
-    public async Task<int?> GetActiveReplyIdAsync()
+    public async Task<int?> GetActiveReplyIdAsync(string promptSetName)
     {
+        var stateKey = $"active_reply_id:{promptSetName}";
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
 
         int? storedId = null;
         await using (var stateCmd = conn.CreateCommand())
         {
-            stateCmd.CommandText = "SELECT value FROM session_state WHERE key = 'active_reply_id';";
+            stateCmd.CommandText = "SELECT value FROM session_state WHERE key = $key;";
+            stateCmd.Parameters.AddWithValue("$key", stateKey);
             var raw = await stateCmd.ExecuteScalarAsync();
             if (raw is not (null or DBNull) && int.TryParse((string)raw, out var parsed))
                 storedId = parsed;
@@ -203,69 +205,79 @@ public class SessionHistoryRepository : ISessionHistoryRepository
             await using var validateCmd = conn.CreateCommand();
             validateCmd.CommandText = """
                 SELECT COUNT(*) FROM session_events
-                WHERE  id         = $id
-                  AND  event_type = 'ai-reply'
-                  AND  is_active  = 1;
+                WHERE  id              = $id
+                  AND  event_type      = 'ai-reply'
+                  AND  is_active       = 1
+                  AND  prompt_set_name = $name;
                 """;
-            validateCmd.Parameters.AddWithValue("$id", storedId.Value);
-            var count = Convert.ToInt32(await validateCmd.ExecuteScalarAsync());
-            if (count > 0) return storedId;
+            validateCmd.Parameters.AddWithValue("$id",   storedId.Value);
+            validateCmd.Parameters.AddWithValue("$name", promptSetName);
+            if (Convert.ToInt32(await validateCmd.ExecuteScalarAsync()) > 0)
+                return storedId;
         }
 
         await using var fallbackCmd = conn.CreateCommand();
         fallbackCmd.CommandText = """
             SELECT MAX(id) FROM session_events
-            WHERE  event_type = 'ai-reply' AND is_active = 1;
+            WHERE  event_type = 'ai-reply'
+              AND  is_active  = 1
+              AND  prompt_set_name = $name;
             """;
+        fallbackCmd.Parameters.AddWithValue("$name", promptSetName);
         var fallback = await fallbackCmd.ExecuteScalarAsync();
         return fallback is null or DBNull ? null : Convert.ToInt32(fallback);
     }
 
-    public async Task SetActiveReplyIdAsync(int? replyId)
+    public async Task SetActiveReplyIdAsync(int? replyId, string promptSetName)
     {
+        var stateKey = $"active_reply_id:{promptSetName}";
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
         if (replyId.HasValue)
         {
             cmd.CommandText = """
-                INSERT INTO session_state (key, value) VALUES ('active_reply_id', $value)
+                INSERT INTO session_state (key, value) VALUES ($key, $value)
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value;
                 """;
+            cmd.Parameters.AddWithValue("$key",   stateKey);
             cmd.Parameters.AddWithValue("$value", replyId.Value.ToString());
         }
         else
         {
-            cmd.CommandText = "DELETE FROM session_state WHERE key = 'active_reply_id';";
+            cmd.CommandText = "DELETE FROM session_state WHERE key = $key;";
+            cmd.Parameters.AddWithValue("$key", stateKey);
         }
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task<int> GetActiveAiReplyCountAsync()
+    public async Task<int> GetActiveAiReplyCountAsync(string promptSetName)
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             SELECT COUNT(*) FROM session_events
-            WHERE  is_active = 1 AND event_type = 'ai-reply';
+            WHERE  is_active       = 1
+              AND  event_type      = 'ai-reply'
+              AND  prompt_set_name = $name;
             """;
-        var result = await cmd.ExecuteScalarAsync();
-        return Convert.ToInt32(result);
+        cmd.Parameters.AddWithValue("$name", promptSetName);
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
 
-    public async Task<int?> GetOldestActiveConversationBlockAsync()
+    public async Task<int?> GetOldestActiveConversationBlockAsync(string promptSetName)
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             SELECT MIN(id) FROM session_events
-            WHERE  is_active = 1 AND event_type = 'ai-reply';
+            WHERE  is_active       = 1
+              AND  event_type      = 'ai-reply'
+              AND  prompt_set_name = $name;
             """;
+        cmd.Parameters.AddWithValue("$name", promptSetName);
         var result = await cmd.ExecuteScalarAsync();
         return result is DBNull || result is null ? null : Convert.ToInt32(result);
     }
@@ -274,7 +286,6 @@ public class SessionHistoryRepository : ISessionHistoryRepository
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             UPDATE session_events
@@ -285,65 +296,61 @@ public class SessionHistoryRepository : ISessionHistoryRepository
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task SoftDeleteAllActiveAsync()
+    public async Task SoftDeleteAllActiveAsync(string promptSetName)
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "UPDATE session_events SET is_active = 0 WHERE is_active = 1;";
+        cmd.CommandText = """
+            UPDATE session_events
+            SET    is_active = 0
+            WHERE  is_active       = 1
+              AND  prompt_set_name = $name;
+            """;
+        cmd.Parameters.AddWithValue("$name", promptSetName);
         await cmd.ExecuteNonQueryAsync();
     }
 
     public async Task InsertRecommendationHistoryAsync(IReadOnlyList<RawTrack> tracks, int maxRows)
     {
         if (tracks.Count == 0) return;
-
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         var now = DateTimeOffset.UtcNow.UtcDateTime.ToString("O");
-
-        await using (var tx = conn.BeginTransaction())
+        await using var tx = conn.BeginTransaction();
+        foreach (var track in tracks)
         {
-            foreach (var track in tracks)
-            {
-                await using var insert = conn.CreateCommand();
-                insert.Transaction = tx;
-                insert.CommandText = """
-                    INSERT INTO recommendation_history (artist, title, album, recorded_at)
-                    VALUES ($artist, $title, $album, $ts);
-                    """;
-                insert.Parameters.AddWithValue("$artist", (object?)track.Artist ?? DBNull.Value);
-                insert.Parameters.AddWithValue("$title",  (object?)track.Title  ?? DBNull.Value);
-                insert.Parameters.AddWithValue("$album",  (object?)track.Album  ?? DBNull.Value);
-                insert.Parameters.AddWithValue("$ts",     now);
-                await insert.ExecuteNonQueryAsync();
-            }
-
-            // Trim to cap: delete oldest rows beyond maxRows
-            await using var trim = conn.CreateCommand();
-            trim.Transaction = tx;
-            trim.CommandText = """
-                DELETE FROM recommendation_history
-                WHERE id NOT IN (
-                    SELECT id FROM recommendation_history
-                    ORDER BY id DESC
-                    LIMIT $cap
-                );
+            await using var insert = conn.CreateCommand();
+            insert.Transaction = tx;
+            insert.CommandText = """
+                INSERT INTO recommendation_history (artist, title, album, recorded_at)
+                VALUES ($artist, $title, $album, $ts);
                 """;
-            trim.Parameters.AddWithValue("$cap", maxRows);
-            await trim.ExecuteNonQueryAsync();
-
-            await tx.CommitAsync();
+            insert.Parameters.AddWithValue("$artist", (object?)track.Artist ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$title",  (object?)track.Title  ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$album",  (object?)track.Album  ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$ts",     now);
+            await insert.ExecuteNonQueryAsync();
         }
+        await using var trim = conn.CreateCommand();
+        trim.Transaction = tx;
+        trim.CommandText = """
+            DELETE FROM recommendation_history
+            WHERE id NOT IN (
+                SELECT id FROM recommendation_history
+                ORDER BY id DESC
+                LIMIT $cap
+            );
+            """;
+        trim.Parameters.AddWithValue("$cap", maxRows);
+        await trim.ExecuteNonQueryAsync();
+        await tx.CommitAsync();
     }
 
     public async Task<IReadOnlyList<RawTrack>> GetRecentRecommendationHistoryAsync(int limit)
     {
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync();
-
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             SELECT artist, title, album
@@ -352,7 +359,6 @@ public class SessionHistoryRepository : ISessionHistoryRepository
             LIMIT  $limit;
             """;
         cmd.Parameters.AddWithValue("$limit", limit);
-
         var tracks = new List<RawTrack>();
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -365,8 +371,6 @@ public class SessionHistoryRepository : ISessionHistoryRepository
         }
         return tracks;
     }
-
-    // ── Mapping ───────────────────────────────────────────────────────────────
 
     private static SessionEvent ReadEvent(SqliteDataReader r) => new(
         Id:                r.GetInt32(0),

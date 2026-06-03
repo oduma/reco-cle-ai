@@ -4,6 +4,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom, retry, throwError, timer } from 'rxjs';
 import {
@@ -14,6 +15,7 @@ import {
 import { SessionService } from '../../core/services/session.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { GeoWeatherService } from '../../core/services/geo-weather.service';
+import { PromptSetService } from '../../core/services/prompt-set.service';
 import { SettingsModalComponent } from '../settings/settings-modal.component';
 import { MusicalDiaryModalComponent } from '../diary/musical-diary-modal/musical-diary-modal.component';
 import { SuggestionsPanelComponent } from './suggestions-panel/suggestions-panel.component';
@@ -68,6 +70,7 @@ const SPLIT_MIN_PCT   = 25;
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatSelectModule,
     MatTooltipModule,
     SuggestionsPanelComponent,
     MoodPickerComponent,
@@ -119,7 +122,8 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
   protected memoryFill  = computed(() =>
     this.memoryTotal() > 0 ? this.memoryUsed() / this.memoryTotal() : 0
   );
-  protected memoryHigh  = computed(() => this.memoryFill() > 0.8);
+  protected memoryHigh     = computed(() => this.memoryFill() > 0.8);
+  protected sessionDisabled = computed(() => this.promptSetService.activePromptSet()?.useSession === false);
 
   // Split-pane divider
   protected splitPercent = signal(40);
@@ -151,6 +155,7 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     private sessionService: SessionService,
     private settingsService: SettingsService,
     protected geoWeatherService: GeoWeatherService,
+    protected promptSetService: PromptSetService,
     private dialog: MatDialog,
     private ngZone: NgZone,
   ) {
@@ -164,7 +169,16 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
   }
 
   async ngOnInit(): Promise<void> {
-    this.refreshMemory();
+    await this.promptSetService.init();
+
+    const activePs = this.promptSetService.activePromptSet();
+    if (activePs?.useSession === false) {
+      this.memoryUsed.set(0);
+      this.memoryTotal.set(0);
+    } else {
+      this.refreshMemory();
+    }
+
     this.loadEnvSettings();
     try {
       const res = await fetch('/trylines.txt');
@@ -176,7 +190,10 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     } catch {
       // hint stays empty if asset unavailable
     }
-    await this.hydrate();
+
+    if (activePs?.useSession !== false) {
+      await this.hydrate();
+    }
   }
 
   ngAfterViewInit(): void {
@@ -250,6 +267,11 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
   }
 
   protected refreshMemory(): void {
+    if (this.sessionDisabled()) {
+      this.memoryUsed.set(0);
+      this.memoryTotal.set(0);
+      return;
+    }
     this.sessionService.getMemoryStatus().subscribe({
       next: s => {
         this.memoryUsed.set(s.used);
@@ -260,6 +282,7 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
   }
 
   protected bustMemory(): void {
+    if (this.sessionDisabled()) return;
     if (!confirm('Clear all session memory? The AI will start fresh on your next question.')) return;
     this.sessionService.bustMemory().subscribe({
       next: () => {
@@ -268,6 +291,37 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
       },
       error: () => {},
     });
+  }
+
+  protected async onPromptSetChange(name: string): Promise<void> {
+    try {
+      await firstValueFrom(this.promptSetService.setActive(name));
+    } catch {
+      return;
+    }
+
+    const ps = this.promptSetService.activePromptSet();
+
+    // Clear current chat and suggestions regardless
+    this.messages.set([]);
+    this.suggestions.set([]);
+    this.hasSuggestions.set(false);
+    this.suggestionsError.set(false);
+    this.suggestionsMessage.set(null);
+    this.activeReplyId.set(null);
+    this.bubbleNaturalHeights.clear();
+    this.truncatedBubbles.set(new Set());
+    this.expandedBubbles.set(new Set());
+
+    if (!ps || !ps.useSession) {
+      this.memoryUsed.set(0);
+      this.memoryTotal.set(0);
+      return;
+    }
+
+    // Restore session for this prompt set
+    this.refreshMemory();
+    await this.hydrate();
   }
 
   protected openSettings(): void {
@@ -348,10 +402,11 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     this.suggestionsMessage.set(null);
     this.hasSuggestions.set(true);
 
-    const locationCtx = this.useLocation() ? this.geoWeatherService.locationContext() : null;
-    const weatherCtx  = this.useWeather()  ? this.geoWeatherService.weatherContext()  : null;
+    const locationCtx  = this.useLocation() ? this.geoWeatherService.locationContext() : null;
+    const weatherCtx   = this.useWeather()  ? this.geoWeatherService.weatherContext()  : null;
+    const promptSetName = this.promptSetService.activePromptSet()?.name ?? null;
 
-    this.recommendationService.getRecommendations(displayText, this.provider(), mood, locationCtx, weatherCtx).pipe(
+    this.recommendationService.getRecommendations(displayText, this.provider(), mood, locationCtx, weatherCtx, promptSetName).pipe(
       retry({
         count: 4,
         delay: (err, retryCount) => {

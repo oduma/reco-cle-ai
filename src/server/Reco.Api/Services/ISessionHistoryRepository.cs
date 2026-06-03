@@ -5,10 +5,6 @@ namespace Reco.Api.Services;
 
 public interface ISessionHistoryRepository
 {
-    /// <summary>
-    /// Inserts a new session event and returns its auto-generated id.
-    /// Pass <paramref name="conversationBlock"/> to pre-assign the block (used for track-suggestions events).
-    /// </summary>
     Task<int> InsertEventAsync(
         string eventType,
         DateTimeOffset timestamp,
@@ -18,62 +14,33 @@ public interface ISessionHistoryRepository
         string? album,
         string? title,
         double? durationSeconds,
+        string promptSetName,
         int? conversationBlock = null,
         string? mood = null);
 
-    /// <summary>
-    /// Sets conversation_block = <paramref name="aiReplyId"/> on every active row
-    /// whose conversation_block is currently NULL.
-    /// </summary>
-    Task AssignConversationBlockAsync(int aiReplyId);
+    Task AssignConversationBlockAsync(int aiReplyId, string promptSetName);
 
-    /// <summary>
-    /// Inserts a track-suggestions event with the given <paramref name="conversationBlock"/> pre-assigned.
-    /// </summary>
-    Task InsertTrackSuggestionsAsync(IReadOnlyList<RawTrack> rawTracks, int conversationBlock);
+    Task InsertTrackSuggestionsAsync(IReadOnlyList<RawTrack> rawTracks, int conversationBlock, string promptSetName);
 
-    /// <summary>Returns all active session events ordered by timestamp ascending.</summary>
-    Task<IReadOnlyList<SessionEvent>> GetActiveEventsAsync();
+    Task<IReadOnlyList<SessionEvent>> GetActiveEventsAsync(string promptSetName);
 
-    /// <summary>
-    /// Returns all active user-chat and ai-reply events as HistoryTurnDto rows, including
-    /// a HasSuggestions flag for each ai-reply.
-    /// </summary>
-    Task<IReadOnlyList<HistoryTurnDto>> GetHistoryWithSuggestionsAsync();
+    Task<IReadOnlyList<HistoryTurnDto>> GetHistoryWithSuggestionsAsync(string promptSetName);
 
-    /// <summary>
-    /// Returns the raw (un-enriched) tracks stored for a given AI reply event ID,
-    /// or null if no track-suggestions row exists for that reply.
-    /// </summary>
     Task<IReadOnlyList<RawTrack>?> GetRawSuggestionsAsync(int replyId);
 
-    /// <summary>
-    /// Reads active_reply_id from session_state, validates it against active events,
-    /// and falls back to the latest active ai-reply if the stored ID is stale or absent.
-    /// </summary>
-    Task<int?> GetActiveReplyIdAsync();
+    Task<int?> GetActiveReplyIdAsync(string promptSetName);
 
-    /// <summary>Upserts the active_reply_id in session_state. Pass null to remove it.</summary>
-    Task SetActiveReplyIdAsync(int? replyId);
+    Task SetActiveReplyIdAsync(int? replyId, string promptSetName);
 
-    /// <summary>Returns the count of active ai-reply events (= current memory usage).</summary>
-    Task<int> GetActiveAiReplyCountAsync();
+    Task<int> GetActiveAiReplyCountAsync(string promptSetName);
 
-    /// <summary>Returns the id of the oldest active ai-reply, or null if there are none.</summary>
-    Task<int?> GetOldestActiveConversationBlockAsync();
+    Task<int?> GetOldestActiveConversationBlockAsync(string promptSetName);
 
-    /// <summary>Soft-deletes all events belonging to the given conversation block.</summary>
     Task SoftDeleteBlockAsync(int conversationBlock);
 
-    /// <summary>Soft-deletes every active event (memory bust).</summary>
-    Task SoftDeleteAllActiveAsync();
+    Task SoftDeleteAllActiveAsync(string promptSetName);
 
-    /// <summary>
-    /// Inserts each track in <paramref name="tracks"/> into recommendation_history and
-    /// then trims the table to at most <paramref name="maxRows"/> rows (oldest deleted first).
-    /// </summary>
     Task InsertRecommendationHistoryAsync(IReadOnlyList<RawTrack> tracks, int maxRows);
 
-    /// <summary>Returns the most-recently recorded tracks, newest first, capped at <paramref name="limit"/>.</summary>
     Task<IReadOnlyList<RawTrack>> GetRecentRecommendationHistoryAsync(int limit);
 }

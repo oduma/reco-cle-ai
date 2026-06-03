@@ -7,5 +7,6 @@ public record RecommendationRequest(
     string? Provider,
     string? Mood,
     string? LocationContext,
-    string? WeatherContext
+    string? WeatherContext,
+    string? PromptSetName
 );

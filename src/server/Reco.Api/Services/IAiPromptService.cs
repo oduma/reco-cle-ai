@@ -11,6 +11,13 @@ public interface IAiPromptService
     /// <summary>Returns the mood annotation string for a given mood, or null for unknown/normal.</summary>
     Task<string?> GetMoodAnnotationAsync(string? mood);
 
+    /// <summary>
+    /// Substitutes {minTracks} and {maxTracks} in the template, then appends
+    /// ResponseFormatAppendix (with tokens substituted). Returns the complete
+    /// system instruction ready to send to the AI.
+    /// </summary>
+    string BuildSystemInstruction(string template, int minTracks, int maxTracks);
+
     /// <summary>Returns every prompt key with its hardcoded default value (used by the reset UI).</summary>
     IReadOnlyDictionary<string, string> GetAllDefaults();
 }

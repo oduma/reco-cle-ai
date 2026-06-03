@@ -9,5 +9,5 @@ public interface ISessionContextBuilder
     /// preamble string to prepend to the current user prompt. Returns empty history and null
     /// preamble when the session log is empty.
     /// </summary>
-    Task<SessionContext> BuildAsync(CancellationToken cancellationToken = default);
+    Task<SessionContext> BuildAsync(string promptSetName, CancellationToken cancellationToken = default);
 }

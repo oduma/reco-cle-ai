@@ -28,13 +28,15 @@ public class GeminiGatewayService : LlmGatewayBase, IGeminiGatewayService
     public override async Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
         IReadOnlyList<ConversationTurn> history,
+        string? systemInstruction = null,
         CancellationToken cancellationToken = default)
     {
         var (url, sanitizedUrl) = await BuildUrlAsync();
         var minTracks = await _settings.GetIntAsync("RECOMMENDATION_MIN_TRACKS", 10);
         var maxTracks = await _settings.GetIntAsync("RECOMMENDATION_MAX_TRACKS", 20);
-        var systemInstruction = await _prompts.BuildRecommendationPromptAsync(
+        systemInstruction ??= await _prompts.BuildRecommendationPromptAsync(
             AiPromptDefaults.RecommendationInstructionKey, minTracks, maxTracks);
+        systemInstruction = _prompts.BuildSystemInstruction(systemInstruction, minTracks, maxTracks);
 
         var contents    = BuildContents(history, prompt);
         var requestBody = new

@@ -10,6 +10,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SessionStateEntity>          SessionState          { get; set; } = null!;
     public DbSet<DiaryEntryEntity>            DiaryEntries          { get; set; } = null!;
     public DbSet<RecommendationHistoryEntity> RecommendationHistory { get; set; } = null!;
+    public DbSet<PromptSetEntity>             PromptSets            { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,6 +30,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.IsActive).HasColumnName("is_active").IsRequired().HasDefaultValue(1);
             e.Property(x => x.ConversationBlock).HasColumnName("conversation_block");
             e.Property(x => x.Mood).HasColumnName("mood");
+            e.Property(x => x.PromptSetName).HasColumnName("prompt_set_name").IsRequired().HasDefaultValue("Default");
             e.HasIndex(x => x.IsActive).HasDatabaseName("idx_se_is_active");
             e.HasIndex(x => x.ConversationBlock).HasDatabaseName("idx_se_conversation_block");
         });
@@ -57,6 +59,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Date).HasColumnName("date");
             e.Property(x => x.Content).HasColumnName("content").IsRequired();
             e.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+        });
+
+        modelBuilder.Entity<PromptSetEntity>(e =>
+        {
+            e.ToTable("prompt_sets");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.Name).HasColumnName("name").IsRequired();
+            e.Property(x => x.UseSession).HasColumnName("use_session").IsRequired().HasDefaultValue(1);
+            e.Property(x => x.RecommendationPrompt).HasColumnName("recommendation_prompt").IsRequired();
+            e.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            e.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            e.HasIndex(x => x.Name).IsUnique().HasDatabaseName("idx_ps_name");
         });
 
         modelBuilder.Entity<RecommendationHistoryEntity>(e =>

@@ -15,10 +15,10 @@ public class SessionContextBuilder : ISessionContextBuilder
         _settings = settings;
     }
 
-    public async Task<SessionContext> BuildAsync(CancellationToken cancellationToken = default)
+    public async Task<SessionContext> BuildAsync(string promptSetName, CancellationToken cancellationToken = default)
     {
-        var events = await _session.GetActiveEventsAsync();
-        var memoryStatus = await _session.GetMemoryStatusAsync();
+        var events = await _session.GetActiveEventsAsync(promptSetName);
+        var memoryStatus = await _session.GetMemoryStatusAsync(promptSetName);
 
         if (events.Count == 0)
             return new SessionContext([], null, memoryStatus);

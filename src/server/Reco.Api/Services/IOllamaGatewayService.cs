@@ -13,5 +13,6 @@ public interface IOllamaGatewayService : ILLMGatewayService
         string prompt,
         IReadOnlyList<ConversationTurn> history,
         string model,
+        string? systemInstruction = null,
         CancellationToken cancellationToken = default);
 }

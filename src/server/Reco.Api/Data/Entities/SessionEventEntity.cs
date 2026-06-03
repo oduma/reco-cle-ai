@@ -14,4 +14,5 @@ public class SessionEventEntity
     public int     IsActive          { get; set; } = 1;
     public int?    ConversationBlock { get; set; }
     public string? Mood              { get; set; }
+    public string  PromptSetName    { get; set; } = "Default";
 }

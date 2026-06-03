@@ -82,6 +82,31 @@
   }
 }
 
+// ── Prompt set selector ───────────────────────────────────────────────────────
+
+.prompt-set-selector {
+  width: 140px;
+  flex-shrink: 0;
+
+  ::ng-deep .mat-mdc-form-field-infix {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    min-height: 0;
+  }
+
+  ::ng-deep .mat-mdc-select-value {
+    font-size: 0.78rem;
+    font-family: var(--reco-font);
+    color: var(--reco-text-muted);
+  }
+
+  ::ng-deep .mdc-notched-outline__leading,
+  ::ng-deep .mdc-notched-outline__notch,
+  ::ng-deep .mdc-notched-outline__trailing {
+    border-color: var(--reco-border) !important;
+  }
+}
+
 // ── Memory widget ─────────────────────────────────────────────────────────────
 
 .memory-widget {
@@ -122,6 +147,11 @@
   &--high::after {
     background: var(--reco-accent);
   }
+}
+
+.memory-widget--disabled {
+  opacity: 0.35;
+  pointer-events: none;
 }
 
 .memory-bust-btn {

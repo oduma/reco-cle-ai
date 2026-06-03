@@ -28,10 +28,11 @@ public class OllamaGatewayService : LlmGatewayBase, IOllamaGatewayService
     public override async Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
         IReadOnlyList<ConversationTurn> history,
+        string? systemInstruction = null,
         CancellationToken cancellationToken = default)
     {
         var model = await _settings.GetStringAsync("OLLAMA_WHISPER_MODEL", "llama3.1:8b");
-        return await GetMusicRecommendationAsync(prompt, history, model, cancellationToken);
+        return await GetMusicRecommendationAsync(prompt, history, model, systemInstruction, cancellationToken);
     }
 
     // ── GetMusicRecommendationAsync (explicit model) ──────────────────────────
@@ -40,13 +41,15 @@ public class OllamaGatewayService : LlmGatewayBase, IOllamaGatewayService
         string prompt,
         IReadOnlyList<ConversationTurn> history,
         string model,
+        string? systemInstruction = null,
         CancellationToken cancellationToken = default)
     {
         var baseUrl   = await _settings.GetStringAsync("OLLAMA_BASE_URL", "http://localhost:11434");
         var minTracks = await _settings.GetIntAsync("RECOMMENDATION_MIN_TRACKS", 10);
         var maxTracks = await _settings.GetIntAsync("RECOMMENDATION_MAX_TRACKS", 20);
-        var sysInst   = await _prompts.BuildRecommendationPromptAsync(
+        var sysInst   = systemInstruction ?? await _prompts.BuildRecommendationPromptAsync(
             AiPromptDefaults.RecommendationInstructionKey, minTracks, maxTracks);
+        sysInst = _prompts.BuildSystemInstruction(sysInst, minTracks, maxTracks);
 
         var messages    = BuildMessages(sysInst, history, prompt);
         var requestBody = new { model, messages, stream = false, response_format = new { type = "json_object" } };

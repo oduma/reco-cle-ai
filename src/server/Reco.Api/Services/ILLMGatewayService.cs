@@ -8,6 +8,7 @@ public interface ILLMGatewayService
     Task<MusicRecommendationResult> GetMusicRecommendationAsync(
         string prompt,
         IReadOnlyList<ConversationTurn> history,
+        string? systemInstruction = null,
         CancellationToken cancellationToken = default);
 
     Task<string> GenerateDiaryEntryAsync(

@@ -58,6 +58,83 @@
       </div>
     </section>
 
+    <!-- Prompt Sets section -->
+    <section class="settings-group">
+      <h3 class="settings-group-title">Prompt Sets</h3>
+      <p class="settings-group-hint">Each prompt set carries its own recommendation prompt and conversation history.</p>
+
+      @if (psLoading()) {
+        <p class="ps-hint">Loading…</p>
+      } @else {
+        @for (ps of promptSets(); track ps.id) {
+          <div class="ps-row">
+            @if (editingId() === ps.id) {
+              <div class="ps-form">
+                <mat-form-field appearance="outline" floatLabel="always" class="ps-name-field">
+                  <mat-label>Name</mat-label>
+                  <input matInput [ngModel]="editName()" (ngModelChange)="editName.set($event)" name="psEditName" />
+                </mat-form-field>
+                <mat-checkbox [ngModel]="editUseSession()" (ngModelChange)="editUseSession.set($event)" name="psEditSession">
+                  Use session memory
+                </mat-checkbox>
+                <mat-form-field appearance="outline" floatLabel="always" class="ps-prompt-field">
+                  <mat-label>Recommendation Prompt</mat-label>
+                  <textarea matInput [ngModel]="editPrompt()" (ngModelChange)="editPrompt.set($event)"
+                            name="psEditPrompt" rows="6" class="settings-textarea"
+                            placeholder="You are an expert music discovery assistant…"></textarea>
+                </mat-form-field>
+                <div class="ps-form-actions">
+                  <button mat-flat-button color="primary" type="button" (click)="saveEdit(ps.id)" [disabled]="psSaving()">Save</button>
+                  <button mat-button type="button" (click)="cancelEdit()" [disabled]="psSaving()">Cancel</button>
+                </div>
+              </div>
+            } @else {
+              <span class="ps-name">{{ ps.name }}</span>
+              <mat-icon class="ps-session-icon" [matTooltip]="ps.useSession ? 'Session enabled' : 'No session'">
+                {{ ps.useSession ? 'memory' : 'memory_off' }}
+              </mat-icon>
+              <button mat-icon-button type="button" (click)="startEdit(ps)" matTooltip="Edit" aria-label="Edit prompt set">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button type="button" (click)="deletePromptSet(ps)" matTooltip="Delete" aria-label="Delete prompt set">
+                <mat-icon>delete</mat-icon>
+              </button>
+            }
+          </div>
+        }
+
+        @if (addingNew()) {
+          <div class="ps-form">
+            <mat-form-field appearance="outline" floatLabel="always" class="ps-name-field">
+              <mat-label>Name</mat-label>
+              <input matInput [ngModel]="editName()" (ngModelChange)="editName.set($event)" name="psNewName" />
+            </mat-form-field>
+            <mat-checkbox [ngModel]="editUseSession()" (ngModelChange)="editUseSession.set($event)" name="psNewSession">
+              Use session memory
+            </mat-checkbox>
+            <mat-form-field appearance="outline" floatLabel="always" class="ps-prompt-field">
+              <mat-label>Recommendation Prompt</mat-label>
+              <textarea matInput [ngModel]="editPrompt()" (ngModelChange)="editPrompt.set($event)"
+                        name="psNewPrompt" rows="6" class="settings-textarea"
+                        placeholder="You are an expert music discovery assistant…"></textarea>
+            </mat-form-field>
+            <div class="ps-form-actions">
+              <button mat-flat-button color="primary" type="button" (click)="saveNew()" [disabled]="psSaving()">Create</button>
+              <button mat-button type="button" (click)="cancelEdit()" [disabled]="psSaving()">Cancel</button>
+            </div>
+          </div>
+        } @else if (editingId() === null) {
+          <button mat-stroked-button type="button" class="ps-add-btn" (click)="startAdd()">
+            <mat-icon>add</mat-icon> Add Prompt Set
+          </button>
+        }
+
+        @if (psError()) {
+          <p class="ps-error" role="alert">{{ psError() }}</p>
+        }
+      }
+    </section>
+
     <form [formGroup]="form" class="settings-form" (submit)="$event.preventDefault()">
       @for (group of groups; track group.title) {
         <section class="settings-group">
