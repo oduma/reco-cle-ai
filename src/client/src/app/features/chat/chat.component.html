@@ -76,8 +76,8 @@
           <div class="empty-state">
             <img src="logo.png" class="empty-logo" aria-hidden="true" alt="" />
             <p class="empty-prompt">What does your mind sound like today?</p>
-            @if (tryLineHint()) {
-              <p class="empty-hint">{{ tryLineHint() }}</p>
+            @if (displayHint()) {
+              <p class="empty-hint">{{ displayHint() }}</p>
             }
           </div>
         }
@@ -144,25 +144,36 @@
       </div>
 
       <div class="input-area">
-        <mat-form-field class="prompt-field" [class.prompt-field--hint]="isHintPreview()" appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Speak your mind if you want to hear me</mat-label>
+        <mat-form-field class="prompt-field" appearance="outline" subscriptSizing="dynamic">
           <input
             #promptInput
             matInput
             [value]="prompt()"
             (input)="updatePrompt($event)"
             (keydown)="onKeydown($event)"
-            (focus)="onFocus($event)"
-            (blur)="onBlur()"
             [disabled]="loading()"
-            placeholder="e.g. Recommend some melancholic jazz from the 60s"
+            placeholder="Speak your mind if you want to hear me"
             aria-label="Music prompt"
           />
         </mat-form-field>
         <button
+          mat-icon-button
+          class="lightbulb-btn"
+          [matMenuTriggerFor]="suggestionsMenu"
+          [disabled]="loading()"
+          aria-label="Browse suggestions"
+        >
+          <mat-icon>lightbulb</mat-icon>
+        </button>
+        <mat-menu #suggestionsMenu yPosition="above">
+          @for (line of tryLines(); track line) {
+            <button mat-menu-item (click)="selectSuggestion(line)">{{ line }}</button>
+          }
+        </mat-menu>
+        <button
           mat-fab
           (click)="send()"
-          [disabled]="!prompt().trim() || loading() || isHintPreview()"
+          [disabled]="!prompt().trim() || loading()"
           aria-label="Send message"
         >
           <mat-icon>send</mat-icon>

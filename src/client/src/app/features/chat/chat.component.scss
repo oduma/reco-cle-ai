@@ -643,16 +643,17 @@
   flex-shrink: 0;
   background-color: var(--reco-surface-0);
 
-  --mdc-outlined-text-field-label-text-font:          var(--reco-font-bubble);
-  --mdc-outlined-text-field-input-text-color:         var(--reco-text);
-  --mdc-outlined-text-field-label-text-color:         var(--reco-text-muted);
-  --mdc-outlined-text-field-focus-label-text-color:   var(--reco-primary);
-  --mdc-outlined-text-field-outline-color:            var(--reco-border-strong);
-  --mdc-outlined-text-field-focus-outline-color:      var(--reco-primary);
-  --mdc-outlined-text-field-hover-outline-color:      var(--reco-primary);
-  --mdc-outlined-text-field-caret-color:              var(--reco-primary);
-  --mdc-outlined-text-field-disabled-outline-color:   var(--reco-border);
-  --mat-form-field-focus-select-arrow-color:          var(--reco-primary);
+  --mdc-outlined-text-field-label-text-font:                    var(--reco-font-bubble);
+  --mdc-outlined-text-field-input-text-color:                   var(--reco-text);
+  --mdc-outlined-text-field-label-text-color:                   var(--reco-text-muted);
+  --mdc-outlined-text-field-focus-label-text-color:             var(--reco-primary);
+  --mdc-outlined-text-field-outline-color:                      var(--reco-border-strong);
+  --mdc-outlined-text-field-focus-outline-color:                var(--reco-primary);
+  --mdc-outlined-text-field-hover-outline-color:                var(--reco-primary);
+  --mdc-outlined-text-field-caret-color:                        var(--reco-primary);
+  --mdc-outlined-text-field-disabled-outline-color:             var(--reco-border);
+  --mdc-outlined-text-field-input-placeholder-text-color:       rgba(255, 255, 255, 0.28);
+  --mat-form-field-focus-select-arrow-color:                    var(--reco-primary);
 
   --mdc-fab-container-color: var(--reco-primary);
   --mdc-fab-icon-color:      #ffffff;
@@ -661,8 +662,13 @@
 
 .prompt-field {
   flex: 1;
+}
 
-  &--hint {
-    --mdc-outlined-text-field-input-text-color: var(--reco-text-disabled);
+.lightbulb-btn {
+  flex-shrink: 0;
+  color: var(--reco-text-muted);
+
+  &:hover:not([disabled]) {
+    color: var(--reco-primary);
   }
 }

@@ -4,6 +4,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom, retry, throwError, timer } from 'rxjs';
@@ -70,6 +71,7 @@ const SPLIT_MIN_PCT   = 25;
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatMenuModule,
     MatSelectModule,
     MatTooltipModule,
     SuggestionsPanelComponent,
@@ -107,7 +109,8 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
   private   pendingMeasure = false;
 
   protected loadingPhrase = signal(LOADING_PHRASES[0]);
-  protected tryLineHint = signal('');
+  protected tryLines     = signal<string[]>([]);
+  protected displayHint  = signal('');
 
   protected provider = signal<Provider>(
     (localStorage.getItem(PROVIDER_KEY) as Provider) ?? 'gemini'
@@ -148,8 +151,6 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
   private historyIndex = -1;
   private currentDraft = '';
 
-  protected isHintPreview = signal(false);
-
   constructor(
     private recommendationService: RecommendationService,
     private sessionService: SessionService,
@@ -183,12 +184,16 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     try {
       const res = await fetch('/trylines.txt');
       const text = await res.text();
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      if (lines.length > 0) {
-        this.tryLineHint.set(lines[Math.floor(Math.random() * lines.length)]);
+      const parsed = text
+        .split('\n')
+        .map(l => l.trim().replace(/^Try:\s*"/, '').replace(/"$/, '').trim())
+        .filter(l => l.length > 0);
+      if (parsed.length > 0) {
+        this.tryLines.set(parsed);
+        this.displayHint.set(parsed[Math.floor(Math.random() * parsed.length)]);
       }
     } catch {
-      // hint stays empty if asset unavailable
+      // hints stay empty if asset unavailable
     }
 
     if (activePs?.useSession !== false) {
@@ -467,8 +472,7 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
       if (this.promptHistory.length === 0) return;
       event.preventDefault();
       if (this.historyIndex === -1) {
-        this.currentDraft = this.isHintPreview() ? '' : this.prompt();
-        this.isHintPreview.set(false);
+        this.currentDraft = this.prompt();
       }
       this.historyIndex = this.historyIndex === -1
         ? this.promptHistory.length - 1
@@ -491,45 +495,14 @@ export class ChatComponent implements OnInit, AfterViewInit, AfterViewChecked, O
     }
   }
 
-  protected onFocus(event: FocusEvent): void {
-    if (!this.prompt().trim() && this.tryLineHint()) {
-      this.prompt.set(this.tryLineHint());
-      this.isHintPreview.set(true);
-    }
-  }
-
-  protected onBlur(): void {
-    if (this.isHintPreview()) {
-      this.prompt.set('');
-      this.isHintPreview.set(false);
-    }
-  }
-
   protected updatePrompt(event: Event): void {
     this.historyIndex = -1;
-    const inputEl = event.target as HTMLInputElement;
+    this.prompt.set((event.target as HTMLInputElement).value);
+  }
 
-    if (this.isHintPreview()) {
-      const ie = event as InputEvent;
-      const inserted = ie.inputType?.startsWith('insert') ? (ie.data ?? '') : '';
-      if (inserted) {
-        this.isHintPreview.set(false);
-        this.prompt.set(inserted);
-        inputEl.value = inserted;
-      } else {
-        inputEl.value = this.tryLineHint();
-      }
-      return;
-    }
-
-    const value = inputEl.value;
-    if (value === '' && this.tryLineHint()) {
-      this.prompt.set(this.tryLineHint());
-      this.isHintPreview.set(true);
-    } else {
-      this.isHintPreview.set(false);
-      this.prompt.set(value);
-    }
+  protected selectSuggestion(text: string): void {
+    this.prompt.set(text);
+    this.send();
   }
 
   protected formatMessageTime(ts: Date): string {
